@@ -1,0 +1,742 @@
+"""
+ReAct-Light: Reasoning + Acting pour ALFRED
+Extension de Chain-of-Thought avec observation feedback et replanning
+
+Architecture:
+- CoT génère plan initial (high-level subgoals)
+- ReAct exécute avec observation après chaque action
+- Replanning dynamique en cas d'erreur
+- Thoughts explicites pour debugging
+"""
+
+import sys
+import os
+import collections
+from pathlib import Path
+import torch
+import torch.nn as nn
+from torch.nn import functional as F
+from torch.nn.utils.rnn import pad_sequence
+
+# ✓✓✓ FIX cuDNN ✓✓✓
+torch.backends.cudnn.enabled = False
+print("⚠️  cuDNN désactivé pour compatibilité GPU")
+
+# Setup paths
+ALFRED_ROOT = Path.home() / "Bureau" / "Alfred" / "alfred"
+EXP_ROOT = Path.home() / "Bureau" / "Alfred" / "alfred_experiments"
+
+# Ajouter les deux au path
+if str(ALFRED_ROOT) not in sys.path:
+    sys.path.insert(0, str(ALFRED_ROOT))
+if str(EXP_ROOT) not in sys.path:
+    sys.path.insert(0, str(EXP_ROOT))
+
+# Import CoT (sans alfred_experiments. au début)
+from models.model.seq2seq_cot import CoTModule
+
+class ReActLightModule(CoTModule):
+    """
+    ReAct-Light: CoT + Observation Feedback + Replanning
+    
+    Nouvelles capacités:
+    - Observe l'environnement après chaque action low-level
+    - Génère des "thoughts" explicites
+    - Détecte les erreurs (action échouée, objet introuvable)
+    - Replan les subgoals restants si nécessaire
+    """
+    
+    def __init__(self, args, vocab):
+        print("\n" + "="*70)
+        print("INITIALIZING REACT-LIGHT MODULE")
+        print("="*70)
+        
+        # Initialiser le parent CoT
+        super().__init__(args, vocab)
+        
+        # ═══════════════════════════════════════════════════════════
+        # HYPERPARAMÈTRES REACT
+        # ═══════════════════════════════════════════════════════════
+        
+
+        self.use_cot = True      # ← AJOUTER CETTE LIGNE
+        self.use_react = True    # ← CHANGER False → True
+        self.react_loss_weight = getattr(args, 'react_loss_weight', 0.3)
+        self.replan_threshold = getattr(args, 'replan_threshold', 0.5)
+        self.max_replans = getattr(args, 'max_replans', 3)
+        
+        if self.use_react:
+            print(f"\n✓ ReAct-Light ENABLED")
+            print(f"  Replan threshold: {self.replan_threshold}")
+            print(f"  Max replans per episode: {self.max_replans}")
+            print(f"  ReAct loss weight: {self.react_loss_weight}")
+            
+            # ═══════════════════════════════════════════════════════════
+            # OBSERVATION ENCODER
+            # ═══════════════════════════════════════════════════════════
+            
+            # Encode l'état de l'environnement
+            self.observation_encoder = nn.Sequential(
+                nn.Linear(args.dhid, args.dhid),
+                nn.ReLU(),
+                nn.Dropout(0.1),
+                nn.Linear(args.dhid, args.dhid)
+            )
+            
+            # ═══════════════════════════════════════════════════════════
+            # THOUGHT GENERATOR
+            # ═══════════════════════════════════════════════════════════
+            
+            # Génère des thoughts explicites (pour debugging et loss)
+            self.thought_generator = nn.LSTM(
+                args.dhid * 2,  # observation + subgoal context
+                args.dhid,
+                batch_first=True
+            )
+            
+            # Vocabulaire de thoughts (simplifié pour commencer)
+            self.thought_vocab = self._create_thought_vocab()
+            
+            self.thought_classifier = nn.Linear(
+                args.dhid,
+                len(self.thought_vocab)
+            )
+            
+            # ═══════════════════════════════════════════════════════════
+            # REPLANNER
+            # ═══════════════════════════════════════════════════════════
+            
+            # Décide si replanning nécessaire
+            self.replan_detector = nn.Sequential(
+                nn.Linear(args.dhid * 3, args.dhid),  # obs + subgoal + history
+                nn.ReLU(),
+                nn.Linear(args.dhid, 2)  # binary: replan ou pas
+            )
+            
+            # ✓✓✓ FIX: Projection pour cont_lang ✓✓✓
+            # Vérifier si déjà défini dans parent (CoTModule)
+            if not hasattr(self, 'project_cont'):
+                # cont_lang peut être dhid ou dhid*2 (bidirectionnel)
+                cont_lang_dim = args.dhid * 2 if hasattr(args, 'bidir') and args.bidir else args.dhid
+                self.project_cont = nn.Linear(cont_lang_dim, args.dhid)
+                print(f"  Created project_cont: {cont_lang_dim} → {args.dhid}")
+            else:
+                print(f"  Using existing project_cont from parent")
+            
+            # Génère nouveaux subgoals si replan
+            self.replanner = nn.LSTM(
+                args.demb + args.dhid * 2,  # token + context + observation
+                args.dhid,
+                batch_first=True
+            )
+            
+            print(f"  Observation encoder: {args.dhid} → {args.dhid}")
+            print(f"  Thought vocab size: {len(self.thought_vocab)}")
+            print(f"  Replanner ready")
+            
+        else:
+            print("\n✗ ReAct-Light DISABLED (using pure CoT)")
+        
+        print("="*70 + "\n")
+    
+    def _create_thought_vocab(self):
+        """Vocabulaire ALFRED standard"""
+        return {
+            0: "GotoLocation",
+            1: "PickupObject", 
+            2: "PutObject",
+            3: "OpenObject",
+            4: "CloseObject",
+            5: "ToggleObjectOn",
+            6: "ToggleObjectOff",
+            7: "SliceObject",
+            8: "HeatObject",
+            9: "CoolObject",
+            10: "CleanObject",
+            11: "NoOp"
+        }
+        
+        
+    def forward(self, feat, max_decode=300, env_feedback=None):
+        """
+        Forward avec ReAct-Light
+        
+        Args:
+            feat: features standard
+            max_decode: max actions
+            env_feedback: dict avec observations de l'environnement (optionnel)
+                {
+                    'observations': tensor (batch, seq_len, obs_dim),
+                    'success_mask': tensor (batch, seq_len) bool,
+                    'step_idx': tensor (batch,) int
+                }
+        """
+        
+        # ✓✓✓ FIX GPU : Déplacer features vers le device du modèle ✓✓✓
+        device = next(self.parameters()).device
+        
+        for key in feat:
+            if isinstance(feat[key], torch.Tensor):
+                feat[key] = feat[key].to(device)
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE 1: ENCODING (identique à CoT)
+        # ═══════════════════════════════════════════════════════════
+        
+        cont_lang, enc_lang = self.encode_lang(feat)
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE 2: PLANNING (CoT génère plan initial)
+        # ═══════════════════════════════════════════════════════════
+        
+        if self.use_cot and not self.test_mode:
+            subgoals_logits, subgoals_hidden = self._generate_subgoals(
+                cont_lang, enc_lang, feat
+            )
+            feat['subgoals_logits'] = subgoals_logits
+            feat['subgoals_hidden'] = subgoals_hidden
+            
+            # Enrichir le contexte
+            enc_lang = self._enhance_context(enc_lang, subgoals_hidden)
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE 3: REACT (observation + reasoning + replanning)
+        # ═══════════════════════════════════════════════════════════
+        
+        if self.use_react and not self.test_mode and env_feedback is not None:
+            react_outputs = self._react_reasoning(
+                feat, 
+                enc_lang, 
+                env_feedback
+            )
+            feat.update(react_outputs)
+        
+        # ═══════════════════════════════════════════════════════════
+        # PHASE 4: DECODING (actions low-level)
+        # ═══════════════════════════════════════════════════════════
+        
+        state_0 = cont_lang, torch.zeros_like(cont_lang)
+        frames = self.vis_dropout(feat['frames'])
+        
+        res = self.dec(
+            enc_lang, 
+            frames, 
+            max_decode=max_decode,
+            gold=feat['action_low'], 
+            state_0=state_0
+        )
+        
+        feat.update(res)
+        return feat
+    
+    
+    def _react_reasoning(self, feat, enc_lang, env_feedback):
+        """
+        Boucle ReAct: Observation → Thought → Replan (si nécessaire)
+        
+        Version simplifiée pour training (pas de vrai environnement)
+        Utilise les succès/échecs des actions comme proxy
+        """
+        batch_size = enc_lang.size(0)
+        device = enc_lang.device
+        
+        observations = env_feedback.get('observations')  # (batch, seq_len, obs_dim)
+        success_mask = env_feedback.get('success_mask')  # (batch, seq_len)
+        
+        if observations is None:
+            # Pas d'observations réelles, simuler avec hidden states
+            observations = enc_lang[:, :1, :].expand(-1, feat['action_low'].size(1), -1)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 1. ENCODE OBSERVATIONS
+        # ═══════════════════════════════════════════════════════════
+        
+        obs_encoded = self.observation_encoder(observations)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 2. GENERATE THOUGHTS
+        # ═══════════════════════════════════════════════════════════
+        
+        thoughts_logits = self._generate_thoughts(
+            obs_encoded, 
+            feat.get('subgoals_hidden')
+        )
+        
+        # ═══════════════════════════════════════════════════════════
+        # 3. DETECT REPLANNING NEEDS
+        # ═══════════════════════════════════════════════════════════
+        
+        replan_scores = self._detect_replanning(
+            obs_encoded,
+            feat.get('subgoals_hidden'),
+            success_mask
+        )
+        
+        return {
+            'react_thoughts': thoughts_logits,
+            'react_replan_scores': replan_scores,
+            'react_observations': obs_encoded
+        }
+    
+    
+    def _generate_thoughts(self, observations, subgoals_hidden):
+        """
+        Génère thoughts explicites basés sur observations
+        
+        Args:
+            observations: (batch, seq_len, dhid)
+            subgoals_hidden: (batch, n_subgoals, dhid) ou None
+        
+        Returns:
+            thoughts_logits: (batch, seq_len, thought_vocab_size)
+        """
+        batch_size, seq_len, dhid = observations.shape
+        device = observations.device
+        
+        # Contexte des subgoals (répété pour chaque step)
+        if subgoals_hidden is not None:
+            # Prendre le dernier subgoal comme contexte
+            subgoal_context = subgoals_hidden[:, -1:, :].expand(-1, seq_len, -1)
+        else:
+            subgoal_context = torch.zeros_like(observations)
+        
+        # Combiner observation + subgoal context
+        thought_input = torch.cat([observations, subgoal_context], dim=-1)
+        
+        # LSTM pour générer thoughts
+        thought_hidden, _ = self.thought_generator(thought_input)
+        
+        # Classifier
+        thoughts_logits = self.thought_classifier(thought_hidden)
+        
+        return thoughts_logits
+    
+    
+    def _detect_replanning(self, observations, subgoals_hidden, success_mask):
+        """
+        Détecte si replanning est nécessaire
+        
+        Args:
+            observations: (batch, seq_len, dhid)
+            subgoals_hidden: (batch, n_subgoals, dhid) ou None
+            success_mask: (batch, seq_len) bool - True si action réussie
+        
+        Returns:
+            replan_scores: (batch, seq_len, 2) - [no_replan, replan]
+        """
+        batch_size, seq_len, dhid = observations.shape
+        device = observations.device
+        
+        # Contexte
+        if subgoals_hidden is not None:
+            subgoal_context = subgoals_hidden[:, -1:, :].expand(-1, seq_len, -1)
+        else:
+            subgoal_context = torch.zeros_like(observations)
+        
+        # Historique (cumsum des observations)
+        history = torch.cumsum(observations, dim=1) / torch.arange(
+            1, seq_len + 1, device=device
+        ).view(1, -1, 1)
+        
+        # Combiner obs + subgoal + history
+        replan_input = torch.cat([
+            observations, 
+            subgoal_context, 
+            history
+        ], dim=-1)
+        
+        # Détecter besoin de replanning
+        replan_scores = self.replan_detector(replan_input)
+        
+        return replan_scores
+    
+    
+    def compute_loss(self, out, batch, feat):
+        """
+        Loss avec ReAct-Light
+        
+        Ajoute losses pour:
+        - Thoughts (classification des states)
+        - Replanning (détection d'erreurs)
+        """
+        losses = super().compute_loss(out, batch, feat)
+        
+        if not self.use_react:
+            return losses
+        
+        device = next(self.parameters()).device
+        
+        # ═══════════════════════════════════════════════════════════
+        # THOUGHT LOSS (optionnel - nécessite annotations)
+        # ═══════════════════════════════════════════════════════════
+        
+        if 'react_thoughts' in feat and 'thought_labels' in feat:
+            thought_logits = feat['react_thoughts']  # (batch, seq_len, vocab)
+            thought_labels = feat['thought_labels']  # (batch, seq_len)
+            
+            thought_loss = F.cross_entropy(
+                thought_logits.reshape(-1, thought_logits.size(-1)),
+                thought_labels.reshape(-1),
+                ignore_index=self.pad,
+                reduction='mean'
+            )
+            
+            losses['react_thought'] = thought_loss * self.react_loss_weight
+            
+            # Accuracy
+            pred = thought_logits.argmax(dim=-1)
+            mask = (thought_labels != self.pad)
+            if mask.sum() > 0:
+                acc = ((pred == thought_labels) & mask).float().sum() / mask.float().sum()
+                losses['react_thought_acc'] = acc
+        
+        # ═══════════════════════════════════════════════════════════
+        # REPLAN LOSS (détection d'erreurs)
+        # ═══════════════════════════════════════════════════════════
+        
+        if 'react_replan_scores' in feat:
+            replan_scores = feat['react_replan_scores']  # (batch, seq_len, 2)
+            
+            # Labels: 1 si action échouée, 0 sinon
+            # Simuler avec action_low si pas de vraies observations
+            if 'success_mask' in feat:
+                replan_labels = (~feat['success_mask']).long()
+            else:
+                # Heuristique: considérer que 10% des actions échouent
+                replan_labels = torch.zeros(
+                    replan_scores.size(0), 
+                    replan_scores.size(1),
+                    dtype=torch.long,
+                    device=device
+                )
+                # Marquer aléatoirement 10% comme échecs
+                failure_rate = 0.1
+                replan_labels = (torch.rand_like(replan_labels.float()) < failure_rate).long()
+            
+            replan_loss = F.cross_entropy(
+                replan_scores.reshape(-1, 2),
+                replan_labels.reshape(-1),
+                reduction='mean'
+            )
+            
+            losses['react_replan'] = replan_loss * self.react_loss_weight
+            
+            # Accuracy
+            pred = replan_scores.argmax(dim=-1)
+            acc = (pred == replan_labels).float().mean()
+            losses['react_replan_acc'] = acc
+        
+        return losses
+    
+    
+    def step(self, feat, prev_action=None, env_observation=None):
+        """
+        Inference temps réel avec ReAct-Light
+        
+        Args:
+            feat: features standard
+            prev_action: action précédente
+            env_observation: observation de l'environnement (nouveau)
+                dict avec 'success', 'inventory', 'visible_objects', etc.
+        """
+        
+        # ═══════════════════════════════════════════════════════════
+        # PREMIÈRE FOIS: initialiser + générer plan CoT
+        # ═══════════════════════════════════════════════════════════
+        
+        if self.r_state['cont_lang'] is None:
+            self.r_state['cont_lang'], self.r_state['enc_lang'] = self.encode_lang(feat)
+            
+            if self.use_cot:
+                subgoals_logits, subgoals_hidden = self._generate_subgoals(
+                    self.r_state['cont_lang'],
+                    self.r_state['enc_lang'],
+                    {}
+                )
+                self.r_state['subgoals'] = subgoals_logits.argmax(dim=-1)
+                self.r_state['subgoals_hidden'] = subgoals_hidden
+                self.r_state['current_subgoal_idx'] = 0
+                self.r_state['replan_count'] = 0
+                
+                self._print_cot_plan(self.r_state['subgoals'])
+                
+                self.r_state['enc_lang'] = self._enhance_context(
+                    self.r_state['enc_lang'],
+                    subgoals_hidden
+                )
+            
+            # Initialiser historique ReAct
+            if self.use_react:
+                self.r_state['react_history'] = []
+                self.r_state['last_thought'] = None
+        
+        # ═══════════════════════════════════════════════════════════
+        # REACT: Observer + Raisonner + Replan si nécessaire
+        # ═══════════════════════════════════════════════════════════
+        
+        if self.use_react:
+            # Simuler env_observation si None (pour eval standard)
+            if env_observation is None:
+                env_observation = {
+                    'success': True,  # Assumer succès par défaut
+                    'inventory': [],
+                    'visible_objects': []
+                }
+            self._react_step(env_observation)
+        
+        # ═══════════════════════════════════════════════════════════
+        # DÉCODER prochaine action (appel parent)
+        # ═══════════════════════════════════════════════════════════
+        
+        return super().step(feat, prev_action)
+        
+        
+    def _react_step(self, env_observation):
+        """
+        Un step ReAct:
+        1. Observer l'environnement
+        2. Générer thought
+        3. Décider si replanning nécessaire
+        4. Replan si besoin
+        """
+        device = next(self.parameters()).device
+        
+        # ═══════════════════════════════════════════════════════════
+        # 1. ENCODE OBSERVATION
+        # ═══════════════════════════════════════════════════════════
+        
+        # Encoder observation (simplifié - à adapter selon env)
+        obs_vector = self._encode_env_observation(env_observation)  # (1, dhid)
+        
+        # Passer dans observation_encoder
+        obs_encoded = self.observation_encoder(obs_vector)  # (1, dhid)
+        
+        # Ajouter dimension seq_len pour cohérence
+        obs_encoded = obs_encoded.unsqueeze(1)  # (1, 1, dhid)
+        
+        # ═══════════════════════════════════════════════════════════
+        # 2. GENERATE THOUGHT
+        # ═══════════════════════════════════════════════════════════
+        
+        thought = self._generate_thought_single(
+            obs_encoded,
+            env_observation
+        )
+        
+        self.r_state['last_thought'] = thought
+        self.r_state['react_history'].append({
+            'observation': env_observation,
+            'thought': thought,
+            'subgoal_idx': self.r_state.get('current_subgoal_idx', 0)
+        })
+        
+        if thought:
+            print(f"💭 Thought: {thought}")
+        
+        # ═══════════════════════════════════════════════════════════
+        # 3. DETECT & REPLAN
+        # ═══════════════════════════════════════════════════════════
+        
+        should_replan = self._should_replan_single(
+            obs_encoded,
+            env_observation
+        )
+        
+        if should_replan and self.r_state['replan_count'] < self.max_replans:
+            print(f"\n🔄 REPLANNING (count: {self.r_state['replan_count'] + 1}/{self.max_replans})")
+            self._replan_subgoals(obs_encoded)
+            self.r_state['replan_count'] += 1
+        
+    def _encode_env_observation(self, env_observation):
+        """
+        Encode observation de l'environnement en vecteur
+        
+        Args:
+            env_observation: dict avec clés possibles:
+                - 'success': bool
+                - 'inventory': list of object IDs
+                - 'visible_objects': list of object IDs
+                - 'agent_position': (x, y, z)
+                - etc.
+        
+        Returns:
+            obs_vector: (1, dhid)
+        """
+        device = next(self.parameters()).device
+        
+        # Version simplifiée: créer un vecteur binaire
+        # TODO: améliorer selon structure réelle de l'observation
+        
+        dhid = self.args.dhid
+        obs_vector = torch.zeros(1, dhid, device=device)
+        
+        # Encode success/failure
+        if 'success' in env_observation:
+            obs_vector[0, 0] = 1.0 if env_observation['success'] else -1.0
+        
+        # Encode inventory (has object or not)
+        if 'inventory' in env_observation:
+            if env_observation['inventory']:
+                obs_vector[0, 1] = 1.0
+        
+        # Plus de features selon besoin...
+        
+        return obs_vector
+        
+        
+    def _generate_thought_single(self, obs_encoded, env_observation):
+        """
+        Génère un thought explicite pour un step
+        
+        Returns:
+            thought: str
+        """
+        device = obs_encoded.device
+        
+        # Contexte du subgoal actuel
+        if self.r_state.get('subgoals_hidden') is not None:
+            idx = self.r_state.get('current_subgoal_idx', 0)
+            if idx < self.r_state['subgoals_hidden'].size(1):
+                subgoal_context = self.r_state['subgoals_hidden'][:, idx:idx+1, :]
+            else:
+                subgoal_context = self.r_state['subgoals_hidden'][:, -1:, :]
+        else:
+            subgoal_context = torch.zeros_like(obs_encoded)
+        
+        # Combiner
+        thought_input = torch.cat([obs_encoded, subgoal_context], dim=-1)
+        
+        # LSTM
+        thought_hidden, _ = self.thought_generator(thought_input)
+        
+        # Classifier
+        thought_logits = self.thought_classifier(thought_hidden)
+        thought_idx = thought_logits.argmax(dim=-1).item()
+        
+        # Convertir en texte
+        thought_text = self.thought_vocab.get(thought_idx, f"unknown_{thought_idx}")
+        
+        # Heuristiques additionnelles basées sur observation
+        if env_observation.get('success') == False:
+            thought_text = "action_failed"
+        
+        return thought_text
+    
+    
+    def _should_replan_single(self, obs_encoded, env_observation):
+        """
+        Décide si replanning nécessaire
+        
+        Returns:
+            bool
+        """
+        # Heuristique simple: replan si action échouée
+        if env_observation.get('success') == False:
+            return True
+        
+        # Utiliser le réseau si disponible
+        if self.r_state.get('subgoals_hidden') is not None:
+            idx = self.r_state.get('current_subgoal_idx', 0)
+            if idx < self.r_state['subgoals_hidden'].size(1):
+                subgoal_context = self.r_state['subgoals_hidden'][:, idx:idx+1, :]
+            else:
+                subgoal_context = self.r_state['subgoals_hidden'][:, -1:, :]
+            
+            # Historique (moyenne des observations passées)
+            if len(self.r_state['react_history']) > 0:
+                # Simplification: utiliser même obs_encoded
+                history = obs_encoded
+            else:
+                history = torch.zeros_like(obs_encoded)
+            
+            replan_input = torch.cat([obs_encoded, subgoal_context, history], dim=-1)
+            replan_scores = self.replan_detector(replan_input)  # (1, 1, 2)
+            
+            # Squeeze pour avoir (2,) au lieu de (1, 1, 2)
+            replan_scores_flat = replan_scores.squeeze(0).squeeze(0)  # (2,)
+            
+            should_replan = replan_scores_flat.argmax(dim=-1).item() == 1
+            confidence = F.softmax(replan_scores_flat, dim=-1)[1].item()
+            
+            # Threshold
+            return should_replan and confidence > self.replan_threshold
+        
+        return False
+    
+    def _replan_subgoals(self, obs_encoded):
+        """
+        Régénère les subgoals restants
+        
+        ✓✓✓ FIX: Dimensions correctes pour torch.cat ✓✓✓
+        """
+        device = obs_encoded.device
+        
+        print("  Regenerating remaining subgoals...")
+        
+        # Projection
+        cont_lang_proj = self.project_cont(self.r_state['cont_lang'])  # (1, dhid)
+        
+        # État initial
+        h_0 = cont_lang_proj.unsqueeze(0)  # (1, 1, dhid)
+        c_0 = torch.zeros_like(h_0)
+        state = (h_0, c_0)
+        
+        # Token de départ
+        input_tok = torch.full(
+            (1,), 
+            self.subgoal_start, 
+            dtype=torch.long, 
+            device=device
+        )
+        
+        new_subgoals = []
+        new_subgoals_hidden = []
+        
+        # Générer nouveaux subgoals
+        for t in range(self.max_subgoals):
+            emb = self.emb_subgoal(input_tok)  # (1, demb)
+            
+            # ✓✓✓ FIX: Assurer que tout est 2D avant concat ✓✓✓
+            obs_squeezed = obs_encoded.squeeze(1)  # (1, dhid)
+            
+            # Concat: (1, demb) + (1, dhid) + (1, dhid) = (1, demb + 2*dhid)
+            lstm_input = torch.cat([
+                emb,              # (1, demb)
+                cont_lang_proj,   # (1, dhid)
+                obs_squeezed      # (1, dhid) ← FIX: maintenant 2D!
+            ], dim=-1).unsqueeze(1)  # Puis (1, 1, demb + 2*dhid)
+            
+            output, state = self.replanner(lstm_input, state)
+            output = output.squeeze(1)
+            
+            logits = self.subgoal_classifier(output)
+            
+            new_subgoals.append(logits)
+            new_subgoals_hidden.append(output)
+            
+            input_tok = logits.argmax(dim=-1)
+            if input_tok.item() == self.subgoal_stop:
+                break
+        
+        if new_subgoals:
+            # Mettre à jour le plan
+            self.r_state['subgoals'] = torch.stack(
+                [sg.argmax(dim=-1) for sg in new_subgoals], 
+                dim=1
+            )
+            self.r_state['subgoals_hidden'] = torch.stack(new_subgoals_hidden, dim=1)
+            
+            # Reset subgoal index
+            self.r_state['current_subgoal_idx'] = 0
+            
+            # Mettre à jour contexte
+            self.r_state['enc_lang'] = self._enhance_context(
+                self.r_state['enc_lang'][:, :self.r_state['enc_lang'].size(1) - self.max_subgoals, :],
+                self.r_state['subgoals_hidden']
+            )
+            
+            self._print_cot_plan(self.r_state['subgoals'])
+
+
+# Alias pour ALFRED
+Module = ReActLightModule

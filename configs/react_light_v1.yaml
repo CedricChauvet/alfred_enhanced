@@ -1,0 +1,93 @@
+exp_name: react_light_v1
+description: "ReAct-Light: CoT + Observation Feedback + Replanning"
+
+# ═══════════════════════════════════════════════════════════
+# DATA & MODEL
+# ═══════════════════════════════════════════════════════════
+
+data: data/json_feat_2.1.0
+splits: data/splits/oct21.json
+
+model: seq2seq_react_light
+
+# ═══════════════════════════════════════════════════════════
+# COT PARAMETERS (hérité)
+# ═══════════════════════════════════════════════════════════
+
+use_cot: true
+max_subgoals: 5
+cot_loss_weight: 0.5
+
+# ═══════════════════════════════════════════════════════════
+# REACT PARAMETERS (nouveau)
+# ═══════════════════════════════════════════════════════════
+
+use_react: true
+react_loss_weight: 0.3      # Poids de la loss ReAct
+replan_threshold: 0.5       # Seuil pour déclencher replanning
+max_replans: 3              # Max replans par épisode
+
+# ═══════════════════════════════════════════════════════════
+# ARCHITECTURE
+# ═══════════════════════════════════════════════════════════
+
+dhid: 128
+demb: 50
+dframe: 2500
+pframe: 300
+
+# ═══════════════════════════════════════════════════════════
+# TRAINING
+# ═══════════════════════════════════════════════════════════
+
+gpu: true
+batch: 4                    # Petit batch pour commencer
+lr: 0.001
+epoch: 7                    # 3 epochs pour premier test
+seed: 42
+
+# ═══════════════════════════════════════════════════════════
+# LOSS WEIGHTS
+# ═══════════════════════════════════════════════════════════
+
+action_loss_wt: 1.0
+mask_loss_wt: 0.1
+pm_aux_loss_wt: 0.1
+subgoal_aux_loss_wt: 0.1
+
+# ═══════════════════════════════════════════════════════════
+# DROPOUT
+# ═══════════════════════════════════════════════════════════
+
+vis_dropout: 0.0
+lang_dropout: 0.0
+input_dropout: 0.0
+hstate_dropout: 0.0
+attn_dropout: 0.0
+actor_dropout: 0.0
+
+# ═══════════════════════════════════════════════════════════
+# TRAINING OPTIONS
+# ═══════════════════════════════════════════════════════════
+
+num_workers: 4
+save_every_epoch: true
+
+# ═══════════════════════════════════════════════════════════
+# NOTES
+# ═══════════════════════════════════════════════════════════
+
+# ReAct-Light ajoute:
+# - Observation encoder: encode l'état de l'environnement
+# - Thought generator: génère thoughts explicites (debugging)
+# - Replan detector: détecte quand replanning nécessaire
+# - Replanner: régénère subgoals en cas d'erreur
+#
+# Différences vs CoT pur:
+# - CoT: génère plan → exécute aveuglément
+# - ReAct: génère plan → observe → adapte → replan si erreur
+#
+# Objectif:
+# - Améliorer success rate de 0% → 20-30%
+# - Récupérer des erreurs (objet introuvable, action échouée)
+# - Débugger avec thoughts explicites

@@ -1,0 +1,4 @@
+# Répertoires à ignorer
+data/json_feat_2.1.0
+experiments/
+

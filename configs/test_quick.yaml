@@ -1,0 +1,38 @@
+exp_name: test_quick
+description: "Test rapide avec évaluation et sauvegarde"
+
+data: data/json_feat_2.1.0
+splits: data/splits/oct21.json
+
+# ✓ Simple: ALFRED ajoutera automatiquement "model."
+model: seq2seq_cot
+
+use_cot: true
+max_subgoals: 5
+cot_loss_weight: 0.5
+
+dhid: 128
+demb: 50
+dframe: 2500
+pframe: 300
+
+gpu: false
+batch: 4
+lr: 0.001
+epoch: 1
+seed: 1
+
+action_loss_wt: 1.0
+mask_loss_wt: 0.1
+pm_aux_loss_wt: 0.1
+subgoal_aux_loss_wt: 0.1
+
+vis_dropout: 0.0
+lang_dropout: 0.0
+input_dropout: 0.0
+hstate_dropout: 0.0
+attn_dropout: 0.0
+actor_dropout: 0.0
+
+num_workers: 2
+save_every_epoch: true
