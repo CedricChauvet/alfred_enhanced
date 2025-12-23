@@ -7,9 +7,9 @@ description: Reproduction exacte du baseline officiel
 # PATHS
 # ============================================================================
 
-data: /media/cedrix/Ubuntu_2To/Alfred/alfred/data/json_feat_2.1.0              # ← CORRIGÉ !
-splits: /media/cedrix/Ubuntu_2To/Alfred/alfred/data/splits/oct21.json
-dout: /media/cedrix/Ubuntu_2To/Alfred/alfred_experiments/experiments/{exp_name}
+data: data/json_feat_2.1.0
+splits: data/splits/oct21.json
+dout: experiments/{exp_name}
 
 
 # Model (utiliser l'original!)

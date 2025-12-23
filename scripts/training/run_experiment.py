@@ -1,6 +1,7 @@
 """
 Script pour lancer des expériences ALFRED
 Avec logs complets dans experiments/*/logs/
+Version avec support des variables d'environnement (.env)
 """
 
 import os
@@ -11,28 +12,46 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 
-ALFRED_ROOT = Path("/media/cedrix/Ubuntu_2To/Alfred/alfred")
-EXP_ROOT = Path("/media/cedrix/Ubuntu_2To/Alfred/alfred_experiments")
+# ============================================================================
+# Charger les variables d'environnement
+# ============================================================================
+def get_env_paths():
+    """Récupère les chemins depuis les variables d'environnement ou utilise les valeurs par défaut"""
+    
+    # Essayer de récupérer depuis les variables d'environnement
+    alfred_root = os.environ.get('ALFRED_ROOT')
+    
+    # Si pas défini, auto-détecter ALFRED_ROOT
+    if not alfred_root:
+        # Remonter de 2 niveaux depuis ce script (scripts/training/run_experiment.py -> racine)
+        script_dir = Path(__file__).resolve().parent
+        alfred_root = script_dir.parent.parent
+        print(f"⚠️  ALFRED_ROOT non défini, auto-détecté: {alfred_root}")
+        print(f"   Pour éviter ce message, faites: source .env")
+    
+    return Path(alfred_root)
+
+# Récupérer les chemins
+ALFRED_ROOT = get_env_paths()
+EXP_ROOT = ALFRED_ROOT / "experiments"
 
 print("="*70)
 print("ALFRED EXPERIMENT RUNNER")
 print("="*70)
 print(f"ALFRED_ROOT: {ALFRED_ROOT}")
-print(f"EXP_ROOT: {EXP_ROOT}")
+print(f"Experiments will be saved in: {EXP_ROOT}")
 print("="*70 + "\n")
 
 def create_experiment_dir(exp_name):
     """Crée un dossier d'expérience avec timestamp"""
-    from datetime import datetime  # Import si pas déjà fait
-    
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    exp_name_full = f"{exp_name}_{timestamp}"  # ← CORRECTION ICI
+    exp_name_full = f"{exp_name}_{timestamp}"
     
-    exp_dir = EXP_ROOT / "experiments" / exp_name_full
+    exp_dir = EXP_ROOT / exp_name_full
     exp_dir.mkdir(parents=True, exist_ok=True)
     (exp_dir / 'checkpoints').mkdir(exist_ok=True)
     (exp_dir / 'logs').mkdir(exist_ok=True)
-    (exp_dir / 'tensorboard').mkdir(exist_ok=True)  # ← AJOUT TENSORBOARD
+    (exp_dir / 'tensorboard').mkdir(exist_ok=True)
     
     return exp_dir
 
@@ -72,7 +91,7 @@ def build_train_command(config, exp_dir):
         '--seed', str(config.get('seed', 1)),
     ])
     
-    # ✅ AJOUT: Passer le chemin TensorBoard
+    # Ajouter le chemin TensorBoard
     tensorboard_dir = exp_dir / 'tensorboard'
     cmd.extend(['--tensorboard_dir', str(tensorboard_dir)])
     
@@ -113,14 +132,13 @@ def run_experiment(config_path):
     
     config = load_config(config_path)
     exp_name = config.get('exp_name', 'unnamed')
+    
     # Ajouter timestamp
-    from datetime import datetime
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     exp_name_full = f"{exp_name}_{timestamp}"
 
     # Créer exp_dir
-    from pathlib import Path
-    exp_dir = EXP_ROOT / "experiments" / exp_name_full   # ✅ Utilise la variable définie en haut
+    exp_dir = EXP_ROOT / exp_name_full
     exp_dir.mkdir(parents=True, exist_ok=True) 
     model_name = config.get('model', 'N/A')
 
@@ -152,12 +170,12 @@ def run_experiment(config_path):
     
     cmd = build_train_command(config, exp_dir)
     
-    # ═══════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════════
     # LOGS FILES
-    # ═══════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════════
     
     log_dir = exp_dir / 'logs'
-    log_dir.mkdir(exist_ok=True)  # ← AJOUTER CETTE LIGNE
+    log_dir.mkdir(exist_ok=True)
     train_log = log_dir / 'train.log'
     command_log = log_dir / 'command.txt'
     summary_log = log_dir / 'summary.txt'
@@ -191,7 +209,7 @@ def run_experiment(config_path):
         # Setup environnement
         env = os.environ.copy()
         env['ALFRED_ROOT'] = str(ALFRED_ROOT)
-        env['PYTHONPATH'] = f"{ALFRED_ROOT}:{EXP_ROOT}:{env.get('PYTHONPATH', '')}"
+        env['PYTHONPATH'] = f"{ALFRED_ROOT}:{env.get('PYTHONPATH', '')}"
         
         # ✓✓✓ LANCER AVEC LOGS ✓✓✓
         with open(train_log, 'w', buffering=1) as log_file:
@@ -241,9 +259,9 @@ def run_experiment(config_path):
         if returncode != 0:
             raise subprocess.CalledProcessError(returncode, cmd)
         
-        # ═══════════════════════════════════════════════════════════
+        # ════════════════════════════════════════════════════════════════════
         # SUCCESS
-        # ═══════════════════════════════════════════════════════════
+        # ════════════════════════════════════════════════════════════════════
         
         with open(exp_dir / 'status.txt', 'w') as f:
             f.write('SUCCESS')
@@ -281,9 +299,9 @@ def run_experiment(config_path):
         return exp_dir
         
     except subprocess.CalledProcessError as e:
-        # ═══════════════════════════════════════════════════════════
+        # ════════════════════════════════════════════════════════════════════
         # FAILURE
-        # ═══════════════════════════════════════════════════════════
+        # ════════════════════════════════════════════════════════════════════
         
         with open(exp_dir / 'status.txt', 'w') as f:
             f.write(f'FAILED: exit code {e.returncode}')
