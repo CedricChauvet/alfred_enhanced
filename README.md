@@ -185,7 +185,6 @@ SOFTWARE.
 
 ## 📚 Citation
 
-Si vous utilisez ce code ou le dataset ALFRED, veuillez citer :
 
 ```bibtex
 @inproceedings{ALFRED20,
