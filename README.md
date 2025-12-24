@@ -2,7 +2,11 @@
 
 Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learning From Realistic Environments and Directives.
 
-**Repository:** https://github.com/CedricChauvet/alfred_enhanced/
+![ALFRED Teaser](https://github.com/askforalfred/alfred/raw/master/media/instr_teaser.png)
+
+## À propos d'ALFRED (issu du reamde officiel)
+
+ALFRED (Action Learning From Realistic Environments and Directives) est un nouveau benchmark pour l'apprentissage d'une correspondance entre les instructions en langage naturel et la vision égocentrique vers des séquences d'actions pour des tâches domestiques. Les longues compositions de déroulements avec des changements d'état non réversibles font partie des phénomènes que nous incluons pour réduire l'écart entre les benchmarks de recherche et les applications du monde réel.
 
 ---
 
@@ -147,7 +151,7 @@ PLW GC: 0.073
 
 ### Chain of Thoughts (CoT)
 
-Voir le README détaillé : `models/model/CoT/README.md`
+Voir le README détaillé :[models/CoT](https://github.com/CedricChauvet/alfred_enhanced/tree/main/models/CoT)
 
 ---
 
@@ -157,3 +161,54 @@ Voir le README détaillé : `models/model/CoT/README.md`
 - **GC** : Goal Condition (Conditions d'objectif atteintes)
 - **PLW SR** : Path Length Weighted Success Rate
 - **PLW GC** : Path Length Weighted Goal Condition
+
+
+
+
+---
+
+## 📄 Licence
+
+Ce projet est basé sur [ALFRED](https://github.com/askforalfred/alfred) qui est sous licence MIT.
+
+### Licence MIT
+
+Copyright (c) 2020 ALFRED Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 📚 Citation
+
+Si vous utilisez ce code ou le dataset ALFRED, veuillez citer :
+
+```bibtex
+@inproceedings{ALFRED20,
+  title ={{ALFRED: A Benchmark for Interpreting Grounded
+           Instructions for Everyday Tasks}},
+  author={Mohit Shridhar and Jesse Thomason and Daniel Gordon and Yonatan Bisk and
+          Winson Han and Roozbeh Mottaghi and Luke Zettlemoyer and Dieter Fox},
+  booktitle = {The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+  year = {2020},
+  url  = {https://arxiv.org/abs/1912.01734}
+}
+```
+
+---
