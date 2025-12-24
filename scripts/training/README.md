@@ -1,11 +1,16 @@
 🚀 Scripts d'Entraînement ALFRED
+
 Scripts pour entraîner les modèles ALFRED Enhanced.
 
 ⭐ Fichiers Essentiels
+
 Les deux fichiers les plus importants de ce dossier sont :
 
-run_experiment.py - Script Python principal pour lancer les expériences
+run_experiment.py - Script Python pour lancer les expériences
+
+
 train.sh - Wrapper bash qui simplifie l'utilisation
+
 
 Ces deux scripts gèrent automatiquement :
 
