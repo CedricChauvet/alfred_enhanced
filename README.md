@@ -196,4 +196,13 @@ SOFTWARE.
 
 ---
 
-## Lectures
+
+## 🎓 Lectures recommandées
+
+
+### Article fondateur
+
+**ALFRED: A Benchmark for Interpreting Grounded Instructions for Everyday Tasks**
+- Auteurs : Mohit Shridhar, Jesse Thomason, Daniel Gordon, et al.
+- Conférence : CVPR 2020
+- [Paper](https://arxiv.org/abs/1912.01734) | [Site officiel](https://askforalfred.com)
