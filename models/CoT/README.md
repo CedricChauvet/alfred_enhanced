@@ -113,6 +113,7 @@ En résumé, l'ajout par rapport a la baseline et de créer la CoT qui est une l
 Exemple 1 : "Put a heated apple in the fridge"
 Subgoals (high-level actions) :
 
+```
 GotoLocation (Counter/Table)
 
 PickupObject (Apple)
@@ -132,7 +133,7 @@ GotoLocation (Fridge)
 OpenObject (Fridge)
 
 PutObject (Apple in Fridge)
-
+```
 
 Cette liste est concaténée avec la sortie de l'encoder
 
