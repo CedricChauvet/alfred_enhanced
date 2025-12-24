@@ -29,6 +29,8 @@ Améliorer les performances du modèle baseline ALFRED en introduisant une gén�
 
 ## 🏗️ Architecture
 
+----------------------------------------
+
 ### Vue d'ensemble CoT v1
 Le modèle CoT v1 ajoute **5 nouveaux layers** (~252K paramètres) au modèle baseline (~10M paramètres) :
 
@@ -57,6 +59,10 @@ PutObject (Apple in Fridge)
 
 Cette liste est concaténée avec la sortie de l'encoder
 
+----------------------------------------
+
+
+
 ### Vue d'ensemble CoT_ProgressMonitor with Attention
 Le modele CoT_pm_attention est un peu plus élaboré:
 
@@ -66,7 +72,11 @@ Par exemple 0% aucun subgoals atteints 50% la moitié de la tache est remplie.
 
 couplé avec le CoT, ce modele est capable de predire quelle tache actuelle l'IA doit resoudre.
 
-### difference entre v1 et pm_attention
+
+----------------------------------------
+
+
+### differences entre v1 et pm_attention
 Tout est  dans la taille de l'encodage, v1 concatène un vecteur de taille max_subgoals=12
 
 pm_attention concatene lui aussi a la sortie de l'encodeur mais seulement un élément (par exemple go to location, ou pickup)
