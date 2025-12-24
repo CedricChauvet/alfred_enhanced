@@ -123,6 +123,8 @@ PLW GC: 0.038
 
 ### Commande d'entraînement
 
+[Documentation complète des scripts d'entraînement](https://github.com/CedricChauvet/alfred_enhanced/blob/main/scripts/training/README.md)
+
 Utilisez le script `train.sh` avec le fichier de configuration YAML :
 
 ```bash
