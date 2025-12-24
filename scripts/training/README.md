@@ -50,7 +50,7 @@ dout: experiments/mon_exp_20251220_140532/checkpoints
 --------------
 
 
-### Liste complète des paramètres
+## 🔧 Liste complète des paramètres
 
 #### Paramètres obligatoires
 
