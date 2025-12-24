@@ -152,17 +152,6 @@ PLW GC: 0.073
 
 Voir le README détaillé :[models/CoT](https://github.com/CedricChauvet/alfred_enhanced/tree/main/models/CoT)
 
----
-
-## 📊 Métriques
-
-- **SR** : Success Rate (Taux de réussite)
-- **GC** : Goal Condition (Conditions d'objectif atteintes)
-- **PLW SR** : Path Length Weighted Success Rate
-- **PLW GC** : Path Length Weighted Goal Condition
-
-
-
 
 ---
 
