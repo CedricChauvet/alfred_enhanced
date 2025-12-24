@@ -52,9 +52,8 @@ source .env
 Vous devriez voir :
 ```
 ✓ ALFRED environment loaded
-  ALFRED_ROOT: /media/cedrix/Ubuntu_2To/Alfred/alfred
-  ALFRED_EXP_ROOT: /media/cedrix/Ubuntu_2To/Alfred/alfred_experiments
-  PYTHONPATH: /media/cedrix/Ubuntu_2To/Alfred/alfred:/media/cedrix/Ubuntu_2To/Alfred/alfred_experiments:
+  ALFRED_ROOT: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced
+  PYTHONPATH: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced:
 ```
 
 **Important :** 
@@ -135,7 +134,7 @@ cd $ALFRED_EXP_ROOT
 ./scripts/train.sh ./config/baseline_reproduction.yaml
 ```
 
-Les résultats du training sont stockés dans `$ALFRED_EXP_ROOT/experiments/`
+Les résultats du training sont stockés dans `$ALFRED_ROOT/experiments/`
 
 **Résultats après entraînement :**
 ```
