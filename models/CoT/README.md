@@ -27,7 +27,7 @@ Améliorer les performances du modèle baseline ALFRED en introduisant une gén�
 
 ----------------------------------------
 
-## 🚀 Utilisation :
+## 🚀 Training :
 
 
 Voici le Yaml pour un entrainement du CoT: 
@@ -41,7 +41,7 @@ Voici le Yaml pour un entrainement du CoT:
 cd $ALFRED_ROOT
 ./scripts/train.sh ./config/cot_v1.yaml
 ```
-
+---------------------------------------
 ## 📊 Monitoring avec TensorBoard
 
 ### Qu'est-ce que TensorBoard ?
@@ -66,7 +66,7 @@ Une fois lancé, TensorBoard affiche :
 ```
 TensorBoard 2.x.x at http://localhost:6006/ (Press CTRL+C to quit)
 ```
-
+--------------------------------------
 
 ## 🧪 Évaluation
 
@@ -141,3 +141,7 @@ Tout est  dans la taille de l'encodage, v1 concatène un vecteur de taille max_s
 pm_attention concatene lui aussi a la sortie de l'encodeur mais seulement un élément (par exemple go to location, ou pickup)
 
 En résume le modele sait ce qu'il doit faire a chaque instant.
+
+
+
+----------------------------------------
