@@ -40,14 +40,31 @@ Voici le Yaml pour un entrainement du CoT:
 # Pour un train:
 cd $ALFRED_ROOT
 ./scripts/train.sh ./config/cot_v1.yaml
-
-# Pour le monitoring:
-tensorboard --logdir /media/cedrix/Ubuntu_2To/
-Alfred/alfred_enhanced/experiments/cot_v2_50_epochs_tensorboard_20251221_204424/tensorboard
 ```
 
-```bash
+## 📊 Monitoring avec TensorBoard
 
+### Qu'est-ce que TensorBoard ?
+
+TensorBoard est l'outil de visualisation de TensorFlow/PyTorch qui permet de suivre en temps réel l'entraînement de vos modèles. Il affiche :
+
+- **Courbes de loss** : Évolution des pertes d'entraînement et de validation
+- **Métriques** : Accuracy, Success Rate, Goal Condition, etc.
+- **Graphes** : Architecture du réseau de neurones
+- **Histogrammes** : Distribution des poids et gradients
+- **Images** : Visualisation des prédictions (optionnel)
+
+### Lancement de TensorBoard
+```bash
+# Depuis n'importe quel terminal
+tensorboard --logdir /chemin/vers/experiments/nom_experience/tensorboard
+```
+
+### Accès à l'interface
+
+Une fois lancé, TensorBoard affiche :
+```
+TensorBoard 2.x.x at http://localhost:6006/ (Press CTRL+C to quit)
 ## 🏗️ Architecture
 
 ----------------------------------------
