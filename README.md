@@ -34,6 +34,10 @@ conda activate alfred_env
 ### Chargement des chemins
 
 **Voir le contenu du fichier** [`.env`](.env)
+Editer le fichier .env a la ligne 7:
+
+export ALFRED_ROOT="/my_path/alfred_enhanced"
+Changer my_path par le repertoire actuel de votre repo.
 
 ```bash
 cd /my_path/alfred_enhanced/
