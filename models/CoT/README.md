@@ -68,6 +68,23 @@ TensorBoard 2.x.x at http://localhost:6006/ (Press CTRL+C to quit)
 ```
 
 
+## 🧪 Évaluation
+
+### Évaluation sur validation seen
+```bash
+python models/eval/eval_seq2seq.py 
+--model_path experiments/cot_v1/best_seen.pth 
+--eval_split valid_seen 
+--data data/json_feat_2.1.0 
+--model alfred_experiments.models.seq2seq_cot 
+--gpu 
+--num_threads 2
+```
+
+Devrait lancer Thor
+
+
+----------------------------------------
 ## 🏗️ Architecture
 
 ----------------------------------------
