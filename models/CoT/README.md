@@ -65,8 +65,11 @@ tensorboard --logdir /chemin/vers/experiments/nom_experience/tensorboard
 Une fois lancé, TensorBoard affiche :
 ```
 TensorBoard 2.x.x at http://localhost:6006/ (Press CTRL+C to quit)
-## 🏗️ Architecture
 ```
+
+
+## 🏗️ Architecture
+
 ----------------------------------------
 
 ### Vue d'ensemble CoT v1
