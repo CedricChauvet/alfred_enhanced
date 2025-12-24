@@ -114,14 +114,23 @@ Exemple 1 : "Put a heated apple in the fridge"
 Subgoals (high-level actions) :
 
 GotoLocation (Counter/Table)
+
 PickupObject (Apple)
+
 GotoLocation (Microwave)
+
 PutObject (Apple in Microwave)
+
 ToggleObject (Microwave ON)
+
 ToggleObject (Microwave OFF)
+
 PickupObject (Apple from Microwave)
+
 GotoLocation (Fridge)
+
 OpenObject (Fridge)
+
 PutObject (Apple in Fridge)
 
 
