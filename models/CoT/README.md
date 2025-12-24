@@ -83,6 +83,16 @@ python models/eval/eval_seq2seq.py
 
 Devrait lancer Thor
 
+### 📊 Métriques
+
+- **SR** : Success Rate (Taux de réussite)
+- **GC** : Goal Condition (Conditions d'objectif atteintes)
+- **PLW SR** : Path Length Weighted Success Rate
+- **PLW GC** : Path Length Weighted Goal Condition
+
+
+
+
 
 ----------------------------------------
 ## 🏗️ Architecture
