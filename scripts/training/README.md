@@ -16,12 +16,12 @@ conda activate alfred_env
 
 ### Chargement des chemins
 
+**Voir le contenu du fichier** [`.env`](.env)
+
 ```bash
-cd /media/cedrix/Ubuntu_2To/Alfred/alfred_experiments
+cd /my_path/alfred_enhanced/
 source .env
 ```
-
-**Voir le contenu du fichier** [`.env`](.env)
 
 Vous devriez voir :
 ```
