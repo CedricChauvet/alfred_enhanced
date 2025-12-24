@@ -4,15 +4,20 @@ Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learn
 
 ![ALFRED Teaser](https://github.com/askforalfred/alfred/raw/master/media/instr_teaser.png)
 
-## À propos d'ALFRED (issu du README officiel)
-
-ALFRED (Action Learning From Realistic Environments and Directives) est un nouveau benchmark pour l'apprentissage d'une correspondance entre les instructions en langage naturel et la vision égocentrique vers des séquences d'actions pour des tâches domestiques. Les longues compositions de déroulements avec des changements d'état non réversibles font partie des phénomènes que nous incluons pour réduire l'écart entre les benchmarks de recherche et les applications du monde réel.
 
 
 ---
 **Auteur** : Cédric Chauvet  
 **Date** : 2025  
 **Projet** : Améliorations du benchmark ALFRED
+
+---
+
+
+## À propos d'ALFRED (issu du README officiel)
+
+ALFRED (Action Learning From Realistic Environments and Directives) est un nouveau benchmark pour l'apprentissage d'une correspondance entre les instructions en langage naturel et la vision égocentrique vers des séquences d'actions pour des tâches domestiques. Les longues compositions de déroulements avec des changements d'état non réversibles font partie des phénomènes que nous incluons pour réduire l'écart entre les benchmarks de recherche et les applications du monde réel.
+
 
 ---
 
@@ -25,7 +30,6 @@ Ce repository étend le benchmark ALFRED original avec les fonctionnalités suiv
 - **📊 TensorBoard intégré** : Suivi en temps réel des métriques d'entraînement et de validation
 - **🧠 Modèles Chain of Thoughts (CoT)** : Génération explicite de subgoals pour améliorer le planning
 - **🤖 Progress Monitor avec Attention** : Suivi de l'avancement des sous-objectifs en temps réel
-- **⚙️ Scripts d'entraînement améliorés** : Gestion automatique de l'environnement et logs détaillés
 
 ---
 
