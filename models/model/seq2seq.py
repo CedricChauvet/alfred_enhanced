@@ -47,6 +47,21 @@ class Module(nn.Module):
 
         # args
         args = args or self.args
+        
+        # PATCH: Si de nouveaux args sont fournis, mettre à jour self.args
+        # Ceci est crucial pour les reprises (resume) où self.args contient
+        # les anciens chemins du checkpoint
+        if args is not self.args:
+            # Mettre à jour les chemins dans self.args
+            self.args.dout = args.dout
+            self.args.data = args.data
+            self.args.splits = args.splits
+            if hasattr(args, 'tensorboard_dir'):
+                self.args.tensorboard_dir = args.tensorboard_dir
+            print(f"✓ Updated model args with new paths:")
+            print(f"    dout: {args.dout}")
+            if hasattr(args, 'tensorboard_dir'):
+                print(f"    tensorboard_dir: {args.tensorboard_dir}")
 
         # splits
         train = splits['train']
@@ -99,9 +114,25 @@ class Module(nn.Module):
         train_iter, valid_seen_iter, valid_unseen_iter = 0, 0, 0
         
         # ══════════════════════════════════════════════════════════════
+        # Detect starting epoch for resume
+        # ══════════════════════════════════════════════════════════════
+        start_epoch = 0
+        if hasattr(args, 'resume') and args.resume:
+            # Extract epoch number from checkpoint filename
+            # e.g., "net_epoch_20.pth" -> 20
+            import re
+            match = re.search(r'net_epoch_(\d+)', args.resume)
+            if match:
+                start_epoch = int(match.group(1))
+                print(f"✓ Resuming from epoch {start_epoch}")
+                print(f"  Will train epochs {start_epoch + 1} to {args.epoch}")
+            else:
+                print(f"⚠️  Could not detect epoch from checkpoint name, starting from 0")
+        
+        # ══════════════════════════════════════════════════════════════
         # Training Loop
         # ══════════════════════════════════════════════════════════════
-        for epoch in trange(0, args.epoch, desc='epoch'):
+        for epoch in trange(start_epoch, args.epoch, desc='epoch'):
             print(f"\n{'='*70}")
             print(f"EPOCH {epoch + 1}/{args.epoch}")
             print(f"{'='*70}")

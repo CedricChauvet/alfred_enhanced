@@ -3,3 +3,4 @@ data/json_feat_2.1.0/
 experiments/*
 
 !experiments/.gitkeep
+*/.pth

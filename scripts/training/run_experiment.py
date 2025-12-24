@@ -57,9 +57,30 @@ def create_experiment_dir(exp_name):
 
 
 def load_config(config_path):
-    """Charge config YAML"""
+    """Charge config YAML et résout les variables d'environnement"""
+    
+    # S'assurer que ALFRED_ROOT est défini pour expandvars AVANT de l'utiliser
+    if 'ALFRED_ROOT' not in os.environ:
+        os.environ['ALFRED_ROOT'] = str(ALFRED_ROOT)
+    
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
+    
+    # Résoudre les variables d'environnement dans tous les chemins
+    path_keys = ['data', 'splits', 'dout', 'resume', 'model_path', 'checkpoint']
+    for key in path_keys:
+        if key in config and isinstance(config[key], str):
+            original = config[key]
+            # Expand variables like $ALFRED_ROOT
+            expanded = os.path.expandvars(config[key])
+            config[key] = expanded
+            
+            # Log si une variable a été étendue
+            if original != expanded and '$' in original:
+                print(f"   Resolved: {key}")
+                print(f"      {original}")
+                print(f"   -> {expanded}")
+    
     return config
 
 def build_train_command(config, exp_dir):
@@ -74,15 +95,43 @@ def build_train_command(config, exp_dir):
         data = config['data']
         if isinstance(data, dict):
             # Si c'est un dict, utiliser le chemin par défaut
-            cmd.extend(['--data', 'data/json_feat_2.1.0'])
+            data_path = ALFRED_ROOT / 'data/json_feat_2.1.0'
         else:
-            cmd.extend(['--data', str(data)])
+            # Le chemin peut déjà contenir $ALFRED_ROOT qui a été résolu par load_config
+            # Ou être un chemin relatif/absolu
+            data_str = str(data)
+            
+            # Si le chemin n'est toujours pas résolu (contient encore $), le résoudre
+            if '$' in data_str:
+                data_str = os.path.expandvars(data_str)
+            
+            # Si chemin relatif, résoudre depuis ALFRED_ROOT
+            if not os.path.isabs(data_str):
+                data_path = ALFRED_ROOT / data_str
+            else:
+                data_path = Path(data_str)
+        cmd.extend(['--data', str(data_path)])
     else:
-        cmd.extend(['--data', 'data/json_feat_2.1.0'])
+        data_path = ALFRED_ROOT / 'data/json_feat_2.1.0'
+        cmd.extend(['--data', str(data_path)])
+    
+    # Résoudre splits path
+    splits = config['splits']
+    splits_str = str(splits)
+    
+    # Si le chemin contient encore $, le résoudre
+    if '$' in splits_str:
+        splits_str = os.path.expandvars(splits_str)
+    
+    # Si chemin relatif, résoudre depuis ALFRED_ROOT
+    if not os.path.isabs(splits_str):
+        splits_path = ALFRED_ROOT / splits_str
+    else:
+        splits_path = Path(splits_str)
     
     # Reste de la commande
     cmd.extend([
-        '--splits', str(config['splits']),
+        '--splits', str(splits_path),
         '--model', str(config['model']),
         '--dout', str(exp_dir / 'checkpoints'),
         '--batch', str(config.get('batch', 8)),
@@ -94,6 +143,19 @@ def build_train_command(config, exp_dir):
     # Ajouter le chemin TensorBoard
     tensorboard_dir = exp_dir / 'tensorboard'
     cmd.extend(['--tensorboard_dir', str(tensorboard_dir)])
+    
+    # Gérer resume (checkpoint pour continuer l'entraînement)
+    if 'resume' in config and config['resume']:
+        resume_path = str(config['resume'])
+        
+        # Résoudre les variables d'environnement si présentes
+        if '$' in resume_path:
+            resume_path = os.path.expandvars(resume_path)
+        
+        # Si le chemin n'est pas absolu, le résoudre depuis ALFRED_ROOT
+        if not os.path.isabs(resume_path):
+            resume_path = ALFRED_ROOT / resume_path
+        cmd.extend(['--resume', str(resume_path)])
     
     # Options booléennes
     if config.get('gpu', False):
@@ -132,15 +194,24 @@ def run_experiment(config_path):
     
     config = load_config(config_path)
     exp_name = config.get('exp_name', 'unnamed')
-    
-    # Ajouter timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    exp_name_full = f"{exp_name}_{timestamp}"
-
-    # Créer exp_dir
-    exp_dir = EXP_ROOT / exp_name_full
-    exp_dir.mkdir(parents=True, exist_ok=True) 
     model_name = config.get('model', 'N/A')
+    
+    # ✓✓✓ FIX: Si resume, utiliser le dossier existant ✓✓✓
+    if 'resume' in config and config['resume'] and 'dout' in config and config['dout']:
+        # Mode RESUME: utiliser le dossier existant spécifié dans dout
+        exp_dir = Path(config['dout'])
+        print(f"\n✓ RESUME MODE: Using existing directory")
+        print(f"  {exp_dir}")
+    else:
+        # Mode NOUVEAU: créer un nouveau dossier avec timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        exp_name_full = f"{exp_name}_{timestamp}"
+        exp_dir = EXP_ROOT / exp_name_full
+        print(f"\n✓ NEW EXPERIMENT: Creating directory")
+        print(f"  {exp_dir}")
+    
+    # Créer les sous-dossiers si nécessaire
+    exp_dir.mkdir(parents=True, exist_ok=True)
 
     
     print("\n" + "="*70)
@@ -149,6 +220,21 @@ def run_experiment(config_path):
     print(f"Description: {config.get('description', 'N/A')}")
     print(f"Model: {model_name}")
     print(f"CoT: {config.get('use_cot', False)}")
+    
+    # Afficher info sur resume si présent
+    if 'resume' in config and config['resume']:
+        resume_path = config['resume']
+        if not os.path.isabs(resume_path):
+            resume_path = ALFRED_ROOT / resume_path
+        print(f"Resume from: {resume_path}")
+        
+        # Vérifier que le checkpoint existe
+        if not os.path.exists(resume_path):
+            print(f"❌ ERROR: Resume checkpoint not found: {resume_path}")
+            sys.exit(1)
+        else:
+            print(f"✓ Checkpoint found")
+    
     print("="*70 + "\n")
     
     config_save_path = exp_dir / "config.yaml"
@@ -169,6 +255,36 @@ def run_experiment(config_path):
         json.dump(config, f, indent=2)
     
     cmd = build_train_command(config, exp_dir)
+    
+    # ════════════════════════════════════════════════════════════════════════
+    # VERIFY PATHS BEFORE STARTING
+    # ════════════════════════════════════════════════════════════════════════
+    
+    print("="*70)
+    print("VERIFYING PATHS")
+    print("="*70)
+    
+    # Vérifier data path
+    data_arg_idx = cmd.index('--data') + 1
+    data_path = Path(cmd[data_arg_idx])
+    if not data_path.exists():
+        print(f"❌ ERROR: Data directory not found: {data_path}")
+        print("   Please download the data first:")
+        print("   cd data && sh download_data.sh json_feat")
+        sys.exit(1)
+    else:
+        print(f"✓ Data directory: {data_path}")
+    
+    # Vérifier splits path
+    splits_arg_idx = cmd.index('--splits') + 1
+    splits_path = Path(cmd[splits_arg_idx])
+    if not splits_path.exists():
+        print(f"❌ ERROR: Splits file not found: {splits_path}")
+        sys.exit(1)
+    else:
+        print(f"✓ Splits file: {splits_path}")
+    
+    print("="*70 + "\n")
     
     # ════════════════════════════════════════════════════════════════════════
     # LOGS FILES
@@ -208,8 +324,16 @@ def run_experiment(config_path):
     try:
         # Setup environnement
         env = os.environ.copy()
+        
+        # CRITIQUE: S'assurer que ALFRED_ROOT est défini pour train_seq2seq.py
         env['ALFRED_ROOT'] = str(ALFRED_ROOT)
         env['PYTHONPATH'] = f"{ALFRED_ROOT}:{env.get('PYTHONPATH', '')}"
+        
+        # Debug: afficher les variables d'environnement critiques
+        print(f"Environment variables set:")
+        print(f"  ALFRED_ROOT={env['ALFRED_ROOT']}")
+        print(f"  PYTHONPATH={env['PYTHONPATH']}")
+        print()
         
         # ✓✓✓ LANCER AVEC LOGS ✓✓✓
         with open(train_log, 'w', buffering=1) as log_file:

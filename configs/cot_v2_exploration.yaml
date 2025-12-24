@@ -1,0 +1,41 @@
+exp_name: cot_v2_50_epochs_tensorboard
+description: "CoT reprise depuis epoch 20"
+
+# ============================================================================
+# PATHS - DOSSIER EXISTANT pour le resume
+# ============================================================================
+dout: $ALFRED_ROOT/experiments/cot_v2_50_epochs_tensorboard_20251221_204424
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+# Model
+model: seq2seq_cot
+use_cot: true
+max_subgoals: 12
+cot_loss_weight: 0.2
+dhid: 128
+demb: 100
+dframe: 2500
+pframe: 300
+gpu: true
+batch: 12
+lr: 0.0001  #on a un peu redescendu a partir de l'epoch 20 
+decay_epoch: 10
+epoch: 50
+seed: 1
+action_loss_wt: 1.0
+mask_loss_wt: 0.1
+pm_aux_loss_wt: 0.1
+subgoal_aux_loss_wt: 0.1
+vis_dropout: 0.3
+lang_dropout: 0.0
+input_dropout: 0.0
+hstate_dropout: 0.3
+attn_dropout: 0.0
+actor_dropout: 0.0
+num_workers: 4
+save_every_epoch: true
+preprocess: false
+
+# ✅ RESUME depuis epoch 20
+resume: $ALFRED_ROOT/experiments/cot_v2_50_epochs_tensorboard_20251221_204424/checkpoints/net_epoch_20.pth
