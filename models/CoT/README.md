@@ -25,7 +25,28 @@ Améliorer les performances du modèle baseline ALFRED en introduisant une gén�
 - **Variations** : Plus de subgoals, loss weight plus élevé
 - **Objectif** : Explorer les hyperparamètres CoT
 
----
+----------------------------------------
+
+## 🚀 Utilisation :
+
+
+Voici le Yaml pour un entrainement du CoT: 
+[Configuration CoT v1](https://github.com/CedricChauvet/alfred_enhanced/blob/main/configs/cot_v1.yaml)
+
+
+
+```bash
+
+# Pour un train:
+cd $ALFRED_ROOT
+./scripts/train.sh ./config/cot_v1.yaml
+
+# Pour le monitoring:
+tensorboard --logdir /media/cedrix/Ubuntu_2To/
+Alfred/alfred_enhanced/experiments/cot_v2_50_epochs_tensorboard_20251221_204424/tensorboard
+```
+
+```bash
 
 ## 🏗️ Architecture
 
@@ -64,6 +85,7 @@ Cette liste est concaténée avec la sortie de l'encoder
 
 
 ### Vue d'ensemble CoT_ProgressMonitor with Attention
+
 Le modele CoT_pm_attention est un peu plus élaboré:
 
 Il utilise l'apprentissage du progress monitor qui indique l'avancée des subgaols en pourcentage.
@@ -76,9 +98,9 @@ couplé avec le CoT, ce modele est capable de predire quelle tache actuelle l'IA
 ----------------------------------------
 
 
-### differences entre v1 et pm_attention
+### Differences entre v1 et pm_attention
 Tout est  dans la taille de l'encodage, v1 concatène un vecteur de taille max_subgoals=12
 
 pm_attention concatene lui aussi a la sortie de l'encodeur mais seulement un élément (par exemple go to location, ou pickup)
 
-En résume le modele sait ce qu'il doit faire
+En résume le modele sait ce qu'il doit faire a chaque instant.
