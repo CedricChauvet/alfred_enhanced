@@ -8,6 +8,23 @@ Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learn
 
 ## 📋 Configuration initiale
 
+
+
+#### Création de l'environnement ALFRED
+
+```bash
+# Créer l'environnement avec Python 3.6 (requis pour ALFRED)
+conda create -n alfred_env python=3.6
+
+# Activer l'environnement
+conda activate alfred_env
+
+# Installer les dépendances requises
+pip install -r requirements.txt
+```
+
+**Note :** ALFRED nécessite Python 3.6 pour assurer la compatibilité avec toutes les dépendances.
+
 ### Activation de l'environnement
 
 ```bash
