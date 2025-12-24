@@ -108,9 +108,9 @@ Le modèle CoT v1 ajoute **5 nouveaux layers** (~252K paramètres) au modèle ba
 4. **subgoal_classifier** - Classification des subgoals
 5. **emb_subgoal** - Embedding des indices de subgoals
 
-En résumé, l'ajout par rapport a la baseline et de créer la CoT qui est une liste d'actions de ce type:
+#### En résumé, l'ajout par rapport a la baseline et de créer la CoT qui est une liste d'actions de ce type:
 
-Exemple 1 : "Put a heated apple in the fridge"
+Exemple : "Put a heated apple in the fridge"
 Subgoals (high-level actions) :
 
 ```
