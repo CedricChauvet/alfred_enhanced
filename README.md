@@ -4,7 +4,7 @@ Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learn
 
 ![ALFRED Teaser](https://github.com/askforalfred/alfred/raw/master/media/instr_teaser.png)
 
-## À propos d'ALFRED (issu du reamde officiel)
+## À propos d'ALFRED (issu du README officiel)
 
 ALFRED (Action Learning From Realistic Environments and Directives) est un nouveau benchmark pour l'apprentissage d'une correspondance entre les instructions en langage naturel et la vision égocentrique vers des séquences d'actions pour des tâches domestiques. Les longues compositions de déroulements avec des changements d'état non réversibles font partie des phénomènes que nous incluons pour réduire l'écart entre les benchmarks de recherche et les applications du monde réel.
 
