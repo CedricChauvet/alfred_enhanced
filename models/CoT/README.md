@@ -59,4 +59,16 @@ Cette liste est concaténée avec la sortie de l'encoder
 
 ### Vue d'ensemble CoT_ProgressMonitor with Attention
 Le modele CoT_pm_attention est un peu plus élaboré:
-il utilise
+
+Il utilise l'apprentissage du progress monitor qui indique l'avancée des subgaols en pourcentage.
+
+Par exemple 0% aucun subgoals atteints 50% la moitié de la tache est remplie.
+
+couplé avec le CoT, ce modele est capable de predire quelle tache actuelle l'IA doit resoudre.
+
+### difference entre v1 et pm_attention
+Tout est  dans la taille de l'encodage, v1 concatène un vecteur de taille max_subgoals=12
+
+pm_attention concatene lui aussi a la sortie de l'encodeur mais seulement un élément (par exemple go to location, ou pickup)
+
+En résume le modele sait ce qu'il doit faire
