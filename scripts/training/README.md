@@ -62,7 +62,7 @@ dout: experiments/mon_exp_20251220_140532/checkpoints
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `exp_name` | string | Nom de l'expérience (pour le dossier) |
-| `model` | string | Module Python du modèle (ex: `alfred_experiments.models.seq2seq_cot`) |
+| `model` | string | Module Python du modèle (ex: `seq2seq_cot`) |
 | `splits` | string | Chemin vers le fichier splits JSON |
 
 #### Paramètres de base
