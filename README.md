@@ -1,3 +1,12 @@
+
+
+**Auteur** : Cédric Chauvet  
+**Date** : 2025  
+**Projet** : Améliorations du benchmark ALFRED
+
+---
+
+
 # ALFRED Enhanced
 
 Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learning From Realistic Environments and Directives.
@@ -5,13 +14,6 @@ Projet basé sur [ALFRED](https://github.com/askforalfred/alfred) - Action Learn
 ![ALFRED Teaser](https://github.com/askforalfred/alfred/raw/master/media/instr_teaser.png)
 
 
-
----
-**Auteur** : Cédric Chauvet  
-**Date** : 2025  
-**Projet** : Améliorations du benchmark ALFRED
-
----
 
 
 ## À propos d'ALFRED (issu du README officiel)
