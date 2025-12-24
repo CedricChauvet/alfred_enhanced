@@ -10,10 +10,15 @@ train.sh - Wrapper bash qui simplifie l'utilisation
 Ces deux scripts gèrent automatiquement :
 
 ✅ Le chargement de l'environnement (.env)
+
 ✅ La création des dossiers d'expérience
+
 ✅ Les logs complets (TensorBoard, train.log, etc.)
+
 ✅ La sauvegarde des checkpoints
+
 ✅ La reprise d'entraînement (resume)
+
 ✅ Le arg parser complet
 
 
