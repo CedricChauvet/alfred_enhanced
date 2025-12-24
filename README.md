@@ -56,10 +56,6 @@ Vous devriez voir :
   PYTHONPATH: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced:
 ```
 
-**Important :** 
-- Travaillez exclusivement dans `ALFRED_EXP_ROOT`
-- `ALFRED_ROOT` doit être une copie exacte du repo GitHub
-
 ---
 
 ## 📦 Téléchargement du dataset
