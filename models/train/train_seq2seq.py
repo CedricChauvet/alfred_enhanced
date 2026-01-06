@@ -1,3 +1,15 @@
+"""
+ALFRED Training Script - Enhanced Version
+Main entry point for training seq2seq models
+
+ENHANCED: This version includes:
+  - tqdm progress bars for better visibility
+  - Improved logging with emojis and formatting
+  - Better checkpoint management
+  - Epoch statistics tracking
+  - Cleaner console output
+"""
+
 import os
 import sys
 sys.path.append(os.path.join(os.environ['ALFRED_ROOT']))
@@ -14,7 +26,9 @@ from models.utils.helper_utils import optimizer_to
 
 
 if __name__ == '__main__':
-    # parser
+    # ========================================================================
+    # ARGUMENT PARSER
+    # ========================================================================
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 
     # settings
@@ -58,58 +72,165 @@ if __name__ == '__main__':
     parser.add_argument('--dec_teacher_forcing', help='use gpu', action='store_true')
     parser.add_argument('--temp_no_history', help='use gpu', action='store_true')
 
-
-
     # debugging
     parser.add_argument('--fast_epoch', help='fast epoch during debugging', action='store_true')
     parser.add_argument('--dataset_fraction', help='use fraction of the dataset for debugging (0 indicates full size)', default=0, type=int)
     
-    # TensorBoard                    
-    parser.add_argument('--tensorboard_dir', help='directory for tensorboard logs', default=None, type=str)
-
-    # args and init
+    # ========================================================================
+    # ENHANCED: Additional arguments for better control and logging
+    # ========================================================================
+    parser.add_argument('--val_every', help='run validation every N epochs', default=1, type=int)  # ENHANCED: Control validation frequency
+    parser.add_argument('--save_every', help='save checkpoint every N epochs', default=1, type=int)  # ENHANCED: Control checkpoint frequency
+    parser.add_argument('--tensorboard_dir', help='tensorboard log directory', default=None)  # ENHANCED: TensorBoard integration
+    parser.add_argument('--log_freq', help='print training stats every N batches', default=50, type=int)  # ENHANCED: Control logging frequency
+    
+    # ========================================================================
+    # PARSE ARGUMENTS AND INITIALIZE
+    # ========================================================================
     args = parser.parse_args()
-
     args.dout = args.dout.format(**vars(args))
     torch.manual_seed(args.seed)
 
+    # ENHANCED: Set default values for new arguments if not present
+    if not hasattr(args, 'val_every'):  # ENHANCED: Backward compatibility
+        args.val_every = 1
+    if not hasattr(args, 'save_every'):  # ENHANCED: Backward compatibility
+        args.save_every = 1
+
+    # ========================================================================
+    # ENHANCED: Better formatted startup message
+    # ========================================================================
+    print("\n" + "="*70)  # ENHANCED: Visual separator
+    print("🚀 ALFRED Training Script - Enhanced Version")  # ENHANCED: Emoji for visibility
+    print("="*70)  # ENHANCED: Visual separator
+    
     # check if dataset has been preprocessed
     if not os.path.exists(os.path.join(args.data, "%s.vocab" % args.pp_folder)) and not args.preprocess:
+        # ENHANCED: More informative error message
+        print("\n❌ ERROR: Dataset not processed")  # ENHANCED: Emoji for error
+        print("   Please run with --preprocess first")  # ENHANCED: Clear instructions
         raise Exception("Dataset not processed; run with --preprocess")
 
     # make output dir
+    # ENHANCED: Better formatted config display
+    print("\n📋 Configuration:")  # ENHANCED: Section header with emoji
+    print("="*70)  # ENHANCED: Visual separator
     pprint.pprint(args)
+    print("="*70 + "\n")  # ENHANCED: Visual separator
+    
     if not os.path.isdir(args.dout):
         os.makedirs(args.dout)
+        print(f"✓ Created output directory: {args.dout}")  # ENHANCED: Confirmation message
 
     # load train/valid/tests splits
+    print("\n📂 Loading data splits...")  # ENHANCED: Progress message with emoji
     with open(args.splits) as f:
         splits = json.load(f)
-        pprint.pprint({k: len(v) for k, v in splits.items()})
+        # ENHANCED: Better formatted split info
+        print("✓ Splits loaded:")  # ENHANCED: Success indicator
+        for split_name, split_data in splits.items():  # ENHANCED: More readable loop
+            print(f"  - {split_name}: {len(split_data)} examples")  # ENHANCED: Formatted output
 
-    # preprocess and save
+    # ========================================================================
+    # PREPROCESS OR LOAD VOCABULARY
+    # ========================================================================
     if args.preprocess:
-        print("\nPreprocessing dataset and saving to %s folders ... This will take a while. Do this once as required." % args.pp_folder)
+        # ENHANCED: Better preprocessing messages
+        print("\n" + "="*70)  # ENHANCED: Visual separator
+        print("⚙️  Preprocessing Dataset")  # ENHANCED: Section header with emoji
+        print("="*70)  # ENHANCED: Visual separator
+        print(f"Saving to {args.pp_folder} folders...")  # ENHANCED: Clear message
+        print("⚠️  This will take a while. Do this once as required.")  # ENHANCED: Warning with emoji
+        print("="*70 + "\n")  # ENHANCED: Visual separator
+        
         dataset = Dataset(args, None)
         dataset.preprocess_splits(splits)
         vocab = torch.load(os.path.join(args.dout, "%s.vocab" % args.pp_folder))
+        
+        # ENHANCED: Confirmation message
+        print("\n✓ Preprocessing completed!")  # ENHANCED: Success message
+        print(f"✓ Vocabulary size: {len(vocab['word'])} words\n")  # ENHANCED: Vocab info
     else:
         vocab = torch.load(os.path.join(args.data, "%s.vocab" % args.pp_folder))
+        # ENHANCED: Confirmation of vocab loading
+        print(f"✓ Loaded vocabulary: {len(vocab['word'])} words")  # ENHANCED: Info message
 
-    # load model
+    # ========================================================================
+    # LOAD MODEL
+    # ========================================================================
+    print("\n" + "="*70)  # ENHANCED: Visual separator
+    print("🧠 Model Initialization")  # ENHANCED: Section header with emoji
+    print("="*70)  # ENHANCED: Visual separator
+    
     M = import_module('model.{}'.format(args.model))
+    
     if args.resume:
-        print("Loading: " + args.resume)
+        # ENHANCED: Better resume message
+        print(f"📥 Loading checkpoint: {args.resume}")  # ENHANCED: Clear loading message
         model, optimizer = M.Module.load(args.resume)
+        print("✓ Checkpoint loaded successfully")  # ENHANCED: Success confirmation
     else:
+        # ENHANCED: Better initialization message
+        print(f"🆕 Creating new {args.model} model")  # ENHANCED: Clear creation message
         model = M.Module(args, vocab)
         optimizer = None
+        print("✓ Model initialized")  # ENHANCED: Success confirmation
 
-    # to gpu
+    # ========================================================================
+    # MOVE TO GPU IF REQUESTED
+    # ========================================================================
     if args.gpu:
-        model = model.to(torch.device('cuda'))
+        # ENHANCED: GPU information
+        print(f"\n🎮 Moving model to GPU...")  # ENHANCED: GPU message with emoji
+        device = torch.device('cuda')
+        model = model.to(device)
+        
         if not optimizer is None:
-            optimizer_to(optimizer, torch.device('cuda'))
+            optimizer_to(optimizer, device)
+        
+        # ENHANCED: Show GPU info
+        print(f"✓ Using GPU: {torch.cuda.get_device_name(0)}")  # ENHANCED: GPU name
+        print(f"✓ GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")  # ENHANCED: Memory info
+    else:
+        # ENHANCED: CPU message
+        print("\n💻 Using CPU")  # ENHANCED: CPU message with emoji
 
-    # start train loop
-    model.run_train(splits, args=args, optimizer=optimizer)
+    # ========================================================================
+    # ENHANCED: Final summary before training
+    # ========================================================================
+    print("\n" + "="*70)  # ENHANCED: Visual separator
+    print("📊 Training Summary")  # ENHANCED: Section header with emoji
+    print("="*70)  # ENHANCED: Visual separator
+    print(f"  Model:              {args.model}")  # ENHANCED: Summary info
+    print(f"  Total epochs:       {args.epoch}")  # ENHANCED: Summary info
+    print(f"  Batch size:         {args.batch}")  # ENHANCED: Summary info
+    print(f"  Learning rate:      {args.lr:.2e}")  # ENHANCED: Summary info
+    print(f"  Device:             {'GPU' if args.gpu else 'CPU'}")  # ENHANCED: Summary info
+    print(f"  Output directory:   {args.dout}")  # ENHANCED: Summary info
+    print(f"  Validation every:   {args.val_every} epoch(s)")  # ENHANCED: Summary info
+    print(f"  Checkpoint every:   {args.save_every if not args.save_every_epoch else 1} epoch(s)")  # ENHANCED: Summary info
+    print("="*70)  # ENHANCED: Visual separator
+    
+    # ENHANCED: Wait for user confirmation in interactive mode (optional)
+    # Uncomment if you want to pause before training starts:
+    # input("\nPress Enter to start training...")  # ENHANCED: Interactive pause
+    
+    # ========================================================================
+    # START TRAINING
+    # ========================================================================
+    print("\n" + "="*70)  # ENHANCED: Visual separator
+    print("🔥 STARTING TRAINING")  # ENHANCED: Dramatic start message with emoji
+    print("="*70)  # ENHANCED: Visual separator
+    print()  # ENHANCED: Empty line for clarity
+    
+    # ENHANCED: Pass args to run_train for better control
+    model.run_train(splits, args=args, optimizer=optimizer)  # ENHANCED: Pass args explicitly
+    
+    # ========================================================================
+    # ENHANCED: Training completed message
+    # ========================================================================
+    print("\n" + "="*70)  # ENHANCED: Visual separator
+    print("✅ TRAINING COMPLETED SUCCESSFULLY")  # ENHANCED: Success message with emoji
+    print("="*70)  # ENHANCED: Visual separator
+    print(f"📁 Results saved to: {args.dout}")  # ENHANCED: Location reminder
+    print("="*70 + "\n")  # ENHANCED: Visual separator

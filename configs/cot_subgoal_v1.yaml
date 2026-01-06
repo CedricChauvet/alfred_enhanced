@@ -1,0 +1,87 @@
+# ============================================================================
+# Configuration pour CoTModuleSubgoal
+# Chain-of-Thought avec attention PM → Subgoals
+# ============================================================================
+
+exp_name: 30_decembre_Cot_Subgoal_v2
+description: "CoT with PM-Subgoal Attention - Full model with soft embeddings"
+
+# ============================================================================
+# PATHS
+# ============================================================================
+dout: $ALFRED_ROOT/experiments/30_decembre_Cot_Subgoal
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+# ============================================================================
+# MODEL - CoTModuleSubgoal
+# ============================================================================
+model: seq2seq_cot_subgoal  #
+
+# --- CoT Subgoal Configuration ---
+use_cot_subgoal: true        # Active la génération de subgoals
+max_subgoals: 12             # Nombre max de subgoals à générer
+cot_loss_weight: 0.2         # Poids de la loss CoT (0.1-0.5 recommandé)
+pm_loss_weight: 0.3          # Poids de la loss auxiliaire PM (0.1-0.5 recommandé)
+
+
+# --- PM Attention Configuration ---
+use_pm_attention: true       # Active l'attention PM → Subgoals
+                             # ⚠️ Nécessite que le décodeur retourne 'progress'
+                             # Si 'progress' manque, l'attention sera skippée automatiquement
+
+# ============================================================================
+# ARCHITECTURE
+# ============================================================================
+dhid: 128                    # Dimension cachée LSTM
+demb: 128                    # Dimension embeddings
+dframe: 2500                 # Dimension features visuelles
+pframe: 300                  # Frames pour masque pyramidal
+
+# ============================================================================
+# TRAINING
+# ============================================================================
+gpu: true
+batch: 12                    # Batch size (réduire si OOM car CoT ajoute ~30% mémoire)
+lr: 0.001                    # Learning rate
+decay_epoch: 10              # Decay tous les N epochs
+epoch: 50                    # Nombre total d'epochs
+seed: 1
+
+# ============================================================================
+# LOSS WEIGHTS
+# ============================================================================
+action_loss_wt: 1.0          # Loss actions bas niveau (principale)
+mask_loss_wt: 0.1            # Loss masques objets
+pm_aux_loss_wt: 0.1          # Loss auxiliaire Progress Monitor
+subgoal_aux_loss_wt: 0.1     # Loss auxiliaire subgoals (décodeur parent)
+# Note: cot_loss_weight et pm_loss_weight définis plus haut s'ajoutent ici
+
+
+# ============================================================================
+# DROPOUT
+# ============================================================================
+vis_dropout: 0.3             # Dropout sur features visuelles
+lang_dropout: 0.0            # Dropout sur langage
+input_dropout: 0.0           # Dropout sur inputs
+hstate_dropout: 0.3          # Dropout sur hidden states
+attn_dropout: 0.0            # Dropout sur attention
+actor_dropout: 0.0           # Dropout avant classification
+
+# ============================================================================
+# DATA LOADING
+# ============================================================================
+num_workers: 4               # Workers pour dataloader
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch
+preprocess: false            # Re-preprocess les données (long!)
+
+# ============================================================================
+# OPTIONAL - Teacher Forcing
+# ============================================================================
+dec_teacher_forcing: true    # Teacher forcing pendant training
+                             # (utilise vraies actions au lieu de prédictions)
+tensorboard: true 
+
+
+
+#resume: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced/experiments/25_decembre_Cot_Subgoal_20251229_105923/checkpoints/net_epoch_5.pth

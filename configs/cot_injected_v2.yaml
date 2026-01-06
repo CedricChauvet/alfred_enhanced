@@ -1,0 +1,63 @@
+# Configuration pour VERSION G BASE (AVANT self.subtasks)
+# ============================================================================
+# Configuration pour CoTModuleSubgoalVersionG
+# Chain-of-Thought avec classifier self.subtasks
+# ============================================================================
+exp_name: training_version_K
+description: "VERSION J: Augmentation current_subgoal_loss_wt à 0.3"
+
+# ============================================================================
+# PATHS
+# ============================================================================
+dout: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced/experiments/training_version_K
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+# Model
+model: cot_subgoals_injected
+
+# Training
+batch: 8
+epoch: 30
+lr: 0.0001
+decay_epoch: 10
+
+# Architecture
+dframe: 2500
+dhid: 128
+demb: 128
+pframe: 300
+mask_loss_wt: 1.0
+action_loss_wt: 1.0
+
+# CoT Subgoals
+use_cot_subgoal: True
+max_subgoals: 14
+cot_loss_weight: 0.5
+
+# ============================================================================
+# ENHANCED: Loss du current subgoal (tracking quel subgoal est actif)
+# ============================================================================
+current_subgoal_loss_wt: 0.0  # ← NOUVEAU! Augmenté de 0.1 (défaut) à 0.3
+                               # Justification: loss_current_subgoal (0.31) et 
+                               # loss_action_low (0.41) sont similaires, donc on peut
+                               # donner plus d'importance pour améliorer l'alignement
+
+# Auxiliary losses (du parent)
+pm_aux_loss_wt: 0.1
+subgoal_aux_loss_wt: 0.1
+
+# Dropout
+attn_dropout: 0.0
+hstate_dropout: 0.3
+actor_dropout: 0.0
+input_dropout: 0.0
+vis_dropout: 0.3
+
+# Teacher forcing
+dec_teacher_forcing: True
+
+# Device
+gpu: True
+tensorboard: true 
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch

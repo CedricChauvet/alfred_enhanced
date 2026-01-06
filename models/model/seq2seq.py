@@ -7,8 +7,8 @@ import pprint
 import collections
 import numpy as np
 from torch import nn
-from torch.utils.tensorboard import SummaryWriter  # Utiliser torch.utils.tensorboard au lieu de tensorboardX
-from tqdm import trange
+from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm, trange  # ENHANCED: Import tqdm pour la barre de progression
 
 class Module(nn.Module):
 
@@ -49,10 +49,7 @@ class Module(nn.Module):
         args = args or self.args
         
         # PATCH: Si de nouveaux args sont fournis, mettre à jour self.args
-        # Ceci est crucial pour les reprises (resume) où self.args contient
-        # les anciens chemins du checkpoint
         if args is not self.args:
-            # Mettre à jour les chemins dans self.args
             self.args.dout = args.dout
             self.args.data = args.data
             self.args.splits = args.splits
@@ -68,7 +65,7 @@ class Module(nn.Module):
         valid_seen = splits['valid_seen']
         valid_unseen = splits['valid_unseen']
 
-        # debugging: chose a small fraction of the dataset
+        # debugging
         if self.args.dataset_fraction > 0:
             small_train_size = int(self.args.dataset_fraction * 0.7)
             small_valid_size = int((self.args.dataset_fraction * 0.3) / 2)
@@ -76,16 +73,12 @@ class Module(nn.Module):
             valid_seen = valid_seen[:small_valid_size]
             valid_unseen = valid_unseen[:small_valid_size]
 
-        # debugging: use to check if training loop works without waiting for full epoch
         if self.args.fast_epoch:
             train = train[:16]
             valid_seen = valid_seen[:16]
             valid_unseen = valid_unseen[:16]
 
-        # ══════════════════════════════════════════════════════════════
         # Initialize TensorBoard writer
-        # ══════════════════════════════════════════════════════════════
-        # Utiliser tensorboard_dir si disponible, sinon utiliser dout
         tensorboard_dir = getattr(args, 'tensorboard_dir', args.dout)
         self.summary_writer = SummaryWriter(log_dir=tensorboard_dir)
         print(f"✓ TensorBoard logs: {tensorboard_dir}")
@@ -113,13 +106,9 @@ class Module(nn.Module):
         best_loss = {'train': 1e10, 'valid_seen': 1e10, 'valid_unseen': 1e10}
         train_iter, valid_seen_iter, valid_unseen_iter = 0, 0, 0
         
-        # ══════════════════════════════════════════════════════════════
         # Detect starting epoch for resume
-        # ══════════════════════════════════════════════════════════════
         start_epoch = 0
         if hasattr(args, 'resume') and args.resume:
-            # Extract epoch number from checkpoint filename
-            # e.g., "net_epoch_20.pth" -> 20
             import re
             match = re.search(r'net_epoch_(\d+)', args.resume)
             if match:
@@ -132,7 +121,7 @@ class Module(nn.Module):
         # ══════════════════════════════════════════════════════════════
         # Training Loop
         # ══════════════════════════════════════════════════════════════
-        for epoch in trange(start_epoch, args.epoch, desc='epoch'):
+        for epoch in range(start_epoch, args.epoch):  # ENHANCED: range au lieu de trange (pas de double barre)
             print(f"\n{'='*70}")
             print(f"EPOCH {epoch + 1}/{args.epoch}")
             print(f"{'='*70}")
@@ -146,7 +135,13 @@ class Module(nn.Module):
             current_lr = optimizer.param_groups[0]['lr']
             
             total_train_loss = list()
-            random.shuffle(train)  # shuffle every epoch
+            random.shuffle(train)
+            
+            # ENHANCED: Calculer le nombre total de batches
+            num_batches = (len(train) + args.batch - 1) // args.batch
+            
+            # ENHANCED: Créer une barre de progression manuelle
+            pbar = tqdm(total=num_batches, desc=f"🔥 Epoch {epoch+1}/{args.epoch}", ncols=120)
             
             for batch_idx, (batch, feat) in enumerate(self.iterate(train, args.batch)):
                 out = self.forward(feat)
@@ -156,8 +151,12 @@ class Module(nn.Module):
                 # Accumulate losses for logging
                 for k, v in loss.items():
                     ln = 'loss_' + k
-                    m_train[ln].append(v.item())
-                    self.summary_writer.add_scalar('train/' + ln, v.item(), train_iter)
+                    if isinstance(v, torch.Tensor):
+                        m_train[ln].append(v.item())
+                    else:
+                        m_train[ln].append(v)
+
+                    self.summary_writer.add_scalar('train/' + ln, v.item() if isinstance(v, torch.Tensor) else v, train_iter)
 
                 # optimizer backward pass
                 optimizer.zero_grad()
@@ -167,17 +166,30 @@ class Module(nn.Module):
 
                 self.summary_writer.add_scalar('train/loss', sum_loss, train_iter)
                 
-                # ⬇️ TensorBoard: Log learning rate
                 if batch_idx % 10 == 0:
                     self.summary_writer.add_scalar('train/learning_rate', current_lr, train_iter)
                 
-                sum_loss = sum_loss.detach().cpu()
-                total_train_loss.append(float(sum_loss))
+                sum_loss_value = float(sum_loss.detach().cpu())
+                total_train_loss.append(sum_loss_value)
                 train_iter += self.args.batch
                 
-                # Print progress
-                if batch_idx % 50 == 0:
-                    print(f"  Batch {batch_idx} - Loss: {sum_loss:.4f} - LR: {current_lr:.6f}")
+                # ENHANCED: Mettre à jour la barre avec les métriques
+                avg_loss = sum(total_train_loss) / len(total_train_loss)
+                postfix = {
+                    'loss': f'{sum_loss_value:.4f}',
+                    'avg': f'{avg_loss:.4f}',
+                    'lr': f'{current_lr:.2e}'
+                }
+                
+                # ENHANCED: Ajouter current_subgoal_accuracy si disponible
+                if 'loss_current_subgoal_accuracy' in m_train and m_train['loss_current_subgoal_accuracy']:
+                    acc = m_train['loss_current_subgoal_accuracy'][-1]
+                    postfix['sg_acc'] = f'{acc:.2%}'
+                
+                pbar.set_postfix(postfix, refresh=False)  # FIXED: Pas de refresh ici
+                pbar.update(1)  # FIXED: Refresh seulement ici
+            
+            pbar.close()  # ENHANCED: Fermer la barre proprement
 
             # Average training loss
             avg_train_loss = sum(total_train_loss) / len(total_train_loss)
@@ -186,7 +198,7 @@ class Module(nn.Module):
             print(f"\n  Training - Avg Loss: {avg_train_loss:.4f}")
 
             # ─────────────────────────────────────────────────────────
-            # VALIDATION PHASE: VALID SEEN
+            # VALIDATION PHASE
             # ─────────────────────────────────────────────────────────
             print(f"\n  Validating on seen environments...")
             p_valid_seen, valid_seen_iter, total_valid_seen_loss, m_valid_seen = self.run_pred(
@@ -196,14 +208,10 @@ class Module(nn.Module):
             m_valid_seen['total_loss'] = float(total_valid_seen_loss)
             self.summary_writer.add_scalar('valid_seen/total_loss', m_valid_seen['total_loss'], valid_seen_iter)
             
-            # ⬇️ Logger TOUTES les métriques individuelles
             for metric_name, metric_value in m_valid_seen.items():
-                if metric_name not in ['total_loss']:  # total_loss déjà loggé
+                if metric_name not in ['total_loss']:
                     self.summary_writer.add_scalar(f'valid_seen/{metric_name}', metric_value, epoch)
 
-            # ─────────────────────────────────────────────────────────
-            # VALIDATION PHASE: VALID UNSEEN
-            # ─────────────────────────────────────────────────────────
             print(f"  Validating on unseen environments...")
             p_valid_unseen, valid_unseen_iter, total_valid_unseen_loss, m_valid_unseen = self.run_pred(
                 valid_unseen, args=args, name='valid_unseen', iter=valid_unseen_iter
@@ -212,12 +220,10 @@ class Module(nn.Module):
             m_valid_unseen['total_loss'] = float(total_valid_unseen_loss)
             self.summary_writer.add_scalar('valid_unseen/total_loss', m_valid_unseen['total_loss'], valid_unseen_iter)
             
-            # ⬇️ Logger TOUTES les métriques individuelles
             for metric_name, metric_value in m_valid_unseen.items():
-                if metric_name not in ['total_loss']:  # total_loss déjà loggé
+                if metric_name not in ['total_loss']:
                     self.summary_writer.add_scalar(f'valid_unseen/{metric_name}', metric_value, epoch)
 
-            # ⬇️ TensorBoard: Compare losses across splits
             self.summary_writer.add_scalars('loss_comparison', {
                 'train': avg_train_loss,
                 'valid_seen': total_valid_seen_loss,
@@ -228,10 +234,7 @@ class Module(nn.Module):
                      'valid_seen': m_valid_seen,
                      'valid_unseen': m_valid_unseen}
 
-            # ─────────────────────────────────────────────────────────
-            # SAVE BEST MODELS
-            # ─────────────────────────────────────────────────────────
-            # new best valid_seen loss
+            # Save best models
             if total_valid_seen_loss < best_loss['valid_seen']:
                 print('\n  ✓ Found new best valid_seen!! Saving...')
                 fsave = os.path.join(args.dout, 'best_seen.pth')
@@ -245,16 +248,12 @@ class Module(nn.Module):
                 fbest = os.path.join(args.dout, 'best_seen.json')
                 with open(fbest, 'wt') as f:
                     json.dump(stats, f, indent=2)
-
                 fpred = os.path.join(args.dout, 'valid_seen.debug.preds.json')
                 with open(fpred, 'wt') as f:
                     json.dump(self.make_debug(p_valid_seen, valid_seen), f, indent=2)
                 best_loss['valid_seen'] = total_valid_seen_loss
-                
-                # ⬇️ TensorBoard: Log best loss
                 self.summary_writer.add_scalar('best/valid_seen_loss', best_loss['valid_seen'], epoch)
 
-            # new best valid_unseen loss
             if total_valid_unseen_loss < best_loss['valid_unseen']:
                 print('  ✓ Found new best valid_unseen!! Saving...')
                 fsave = os.path.join(args.dout, 'best_unseen.pth')
@@ -268,14 +267,10 @@ class Module(nn.Module):
                 fbest = os.path.join(args.dout, 'best_unseen.json')
                 with open(fbest, 'wt') as f:
                     json.dump(stats, f, indent=2)
-
                 fpred = os.path.join(args.dout, 'valid_unseen.debug.preds.json')
                 with open(fpred, 'wt') as f:
                     json.dump(self.make_debug(p_valid_unseen, valid_unseen), f, indent=2)
-
                 best_loss['valid_unseen'] = total_valid_unseen_loss
-                
-                # ⬇️ TensorBoard: Log best loss
                 self.summary_writer.add_scalar('best/valid_unseen_loss', best_loss['valid_unseen'], epoch)
 
             # save the latest checkpoint
@@ -315,7 +310,6 @@ class Module(nn.Module):
         print(f"  Valid Unseen: {best_loss['valid_unseen']:.4f}")
         print(f"{'='*70}")
         
-        # ⬇️ TensorBoard: Log final hyperparameters
         hparams = {
             'lr': args.lr,
             'batch_size': args.batch,
@@ -330,8 +324,6 @@ class Module(nn.Module):
         }
         
         self.summary_writer.add_hparams(hparams, final_metrics)
-        
-        # ⬇️ TensorBoard: Close writer
         self.summary_writer.close()
         print(f"✓ TensorBoard logs saved to: {tensorboard_dir}")
         print(f"  View with: tensorboard --logdir={tensorboard_dir}")
@@ -419,8 +411,9 @@ class Module(nn.Module):
     def iterate(self, data, batch_size):
         '''
         breaks dataset into batch_size chunks for training
+        ENHANCED: Silent iteration - la barre tqdm est gérée dans run_train()
         '''
-        for i in trange(0, len(data), batch_size, desc='batch'):
+        for i in range(0, len(data), batch_size):  # ENHANCED: range au lieu de trange (pas de barre ici)
             tasks = data[i:i+batch_size]
             batch = [self.load_task_json(task) for task in tasks]
             feat = self.featurize(batch)
@@ -462,7 +455,6 @@ class Module(nn.Module):
         model.load_state_dict(save['model'], strict=False)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
         
-        # Load optimizer state if available FIXed
         if 'optim' in save and save['optim']:
             try:
                 optimizer.load_state_dict(save['optim'])

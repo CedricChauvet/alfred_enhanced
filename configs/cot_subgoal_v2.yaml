@@ -1,0 +1,112 @@
+# ============================================================================
+# Configuration pour CoTModuleSubgoal
+# Chain-of-Thought avec attention PM → Subgoals
+# ============================================================================
+
+exp_name: cot_pm_VERSION_E_injection
+description: "VERSION E: PM injected in enc_lang - decoder sees subgoals from the start"
+
+# ============================================================================
+# PATHS
+# ============================================================================
+dout: $ALFRED_ROOT/experiments/cot_pm_VERSION_E
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+# ============================================================================
+# MODEL - CoTModuleSubgoal
+# ============================================================================
+model: seq2seq_cot_subgoal  # Votre nouveau modèle
+
+# --- CoT Subgoal Configuration ---
+use_cot_subgoal: true        # Active la génération de subgoals
+max_subgoals: 12             # Nombre max de subgoals à générer
+cot_loss_weight: 0.2         # Poids de la loss CoT (0.1-0.5 recommandé)
+
+# --- PM Attention Configuration ---
+use_pm_attention: true       # Active l'attention PM → Subgoals
+                             # ⚠️ Nécessite que le décodeur retourne 'out_progress'
+                             # Si 'out_progress' manque, l'attention sera skippée automatiquement
+
+attention_loss_weight: 0.1   # ✨ NOUVEAU: Poids de la loss d'attention supervisée
+                             # Supervise l'attention pour qu'elle sélectionne le bon subgoal selon PM
+                             # 0.1 = Faible poids (ne domine pas les autres losses)
+                             # 0.0 = Désactiver cette loss
+
+pm_loss_weight: 1.0          # ✨ VERSION A: Poids égal (PM crucial sans context enrichment)
+                             # Le décodeur garde ses prédictions (intactes)
+                             # Le PM attention apprend en parallèle avec sa propre loss
+                             # 1.0 = Poids égal avec le décodeur (PM devient essentiel)
+
+# ============================================================================
+# ARCHITECTURE
+# ============================================================================
+dhid: 128                    # Dimension cachée LSTM
+demb: 128                    # Dimension embeddings (DOIT être égal à dhid pour CoT)
+dframe: 2500                 # Dimension features visuelles
+pframe: 300                  # Frames pour masque pyramidal
+
+# ============================================================================
+# TRAINING
+# ============================================================================
+gpu: true
+batch: 12                    # Batch size (réduire si OOM car CoT ajoute ~30% mémoire)
+lr: 0.001                    # Learning rate
+decay_epoch: 10              # Decay tous les N epochs
+epoch: 50                    # Nombre total d'epochs
+seed: 1
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+tensorboard: true            # Active TensorBoard logging
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch
+
+# ============================================================================
+# LOSS WEIGHTS
+# ============================================================================
+action_loss_wt: 1.0          # Loss actions bas niveau (principale)
+mask_loss_wt: 0.1            # Loss masques objets
+pm_aux_loss_wt: 0.1          # Loss auxiliaire Progress Monitor
+subgoal_aux_loss_wt: 0.1     # Loss auxiliaire subgoals (décodeur parent)
+# Note: cot_loss_weight (défini plus haut) s'ajoute à ces losses
+
+# ============================================================================
+# DROPOUT
+# ============================================================================
+vis_dropout: 0.3             # Dropout sur features visuelles
+lang_dropout: 0.0            # Dropout sur langage
+input_dropout: 0.0           # Dropout sur inputs
+hstate_dropout: 0.3          # Dropout sur hidden states
+attn_dropout: 0.0            # Dropout sur attention
+actor_dropout: 0.0           # Dropout avant classification
+
+# ============================================================================
+# DATA LOADING
+# ============================================================================
+num_workers: 4               # Workers pour dataloader
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch
+preprocess: false            # Re-preprocess les données (long!)
+
+# ============================================================================
+# OPTIONAL - Teacher Forcing
+# ============================================================================
+dec_teacher_forcing: true    # Teacher forcing pendant training
+                             # (utilise vraies actions au lieu de prédictions)
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# 
+# Ce modèle combine:
+# 1. Génération de subgoals (Chain-of-Thought)
+# 2. Attention PM → Subgoals (sélection dynamique du subgoal pertinent)
+# 3. Soft embeddings (pas besoin de modifier le décodeur parent)
+#
+# Modes de fonctionnement:
+# - use_cot_subgoal=true, use_pm_attention=true  → Modèle complet
+# - use_cot_subgoal=true, use_pm_attention=false → CoT basique (sans attention PM)
+# - use_cot_subgoal=false                        → Baseline (modèle parent)
+#
+# ============================================================================
+resume: /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced/experiments/cot_pm_VERSION_E_injection_20251230_191044/checkpoints/net_epoch_18.pth

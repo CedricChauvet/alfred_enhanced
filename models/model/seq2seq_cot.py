@@ -1,1 +1,0 @@
-/home/cedrix/Bureau/Alfred/alfred_experiments/models/CoT/seq2seq_cot.py

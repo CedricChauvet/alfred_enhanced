@@ -326,6 +326,7 @@ def run_experiment(config_path):
         env = os.environ.copy()
         
         # CRITIQUE: S'assurer que ALFRED_ROOT est défini pour train_seq2seq.py
+        env['PYTHONUNBUFFERED'] = '1'  # Force unbuffered output
         env['ALFRED_ROOT'] = str(ALFRED_ROOT)
         env['PYTHONPATH'] = f"{ALFRED_ROOT}:{env.get('PYTHONPATH', '')}"
         
@@ -347,7 +348,8 @@ def run_experiment(config_path):
             log_file.write("="*70 + "\n\n")
             log_file.flush()
             
-            # Lancer le subprocess
+            # Lancer le subprocess, on test avec subprocess.run d'abord 
+            """
             process = subprocess.Popen(
                 cmd,
                 cwd=ALFRED_ROOT,
@@ -358,6 +360,10 @@ def run_experiment(config_path):
                 bufsize=1,
                 universal_newlines=True
             )
+            """
+            process = subprocess.run(cmd, cwd=ALFRED_ROOT, env=env) # la on perd le log mais au moins ca marche
+            
+            
             
             # Lire et afficher en temps réel
             for line in iter(process.stdout.readline, ''):

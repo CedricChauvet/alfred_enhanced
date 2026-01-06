@@ -211,7 +211,6 @@ class ConvFrameMaskDecoderProgressMonitor(nn.Module):
         self.mask_dec = MaskDecoder(dhid=dhid+dhid+dframe+demb, pframe=self.pframe)
         self.teacher_forcing = teacher_forcing
         self.h_tm1_fc = nn.Linear(dhid, dhid)
-
         self.subgoal = nn.Linear(dhid+dhid+dframe+demb, 1)
         self.progress = nn.Linear(dhid+dhid+dframe+demb, 1)
 

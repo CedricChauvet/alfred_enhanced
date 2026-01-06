@@ -1,0 +1,128 @@
+# ============================================================================
+# Configuration pour CoTModuleSubgoalVersionG
+# Chain-of-Thought avec classifier self.subtasks
+# ============================================================================
+
+exp_name: cot_subtasks_VERSION_G
+description: "VERSION G: self.subtasks classifier - predicts active subgoal at each timestep"
+
+# ============================================================================
+# PATHS
+# ============================================================================
+dout: $ALFRED_ROOT/experiments/cot_subtasks_VERSION_G
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+# ============================================================================
+# MODEL - CoTModuleSubgoalVersionG
+# ============================================================================
+model: seq2seq_cot_subgoal  # Votre nouveau modèle VERSION G
+
+# --- CoT Subgoal Configuration ---
+use_cot_subgoal: true        # Active la génération de subgoals
+max_subgoals: 12             # Nombre max de subgoals à générer
+cot_loss_weight: 0.5         # Poids de la loss CoT (génération de subgoals)
+                             # 0.5 = Poids modéré (balance avec les autres losses)
+
+# --- Subtask Classifier Configuration ---
+subtask_loss_weight: 0.5     # ✨ NOUVEAU VERSION G: Poids de la loss du classifier self.subtasks
+                             # Supervise la prédiction du subgoal actif à chaque timestep
+                             # 0.5 = Poids modéré (équilibré avec CoT)
+                             # Le classifier apprend "quel subgoal suis-je en train de faire ?"
+
+# ============================================================================
+# ARCHITECTURE
+# ============================================================================
+dhid: 128                    # Dimension cachée LSTM
+demb: 128                    # Dimension embeddings (DOIT être égal à dhid pour CoT)
+dframe: 2500                 # Dimension features visuelles
+pframe: 300                  # Frames pour masque pyramidal
+
+# ============================================================================
+# TRAINING
+# ============================================================================
+gpu: true
+batch: 8                     # Batch size (8 pour VERSION G, peut réduire si OOM)
+lr: 0.0001                   # Learning rate (1e-4)
+decay_epoch: 10              # Decay tous les N epochs
+epoch: 30                    # Nombre total d'epochs (30 suffisant pour convergence)
+seed: 1
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+tensorboard: true            # Active TensorBoard logging
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch
+
+# ============================================================================
+# LOSS WEIGHTS
+# ============================================================================
+action_loss_wt: 1.0          # Loss actions bas niveau (principale)
+mask_loss_wt: 0.1            # Loss masques objets
+pm_aux_loss_wt: 0.1          # Loss auxiliaire Progress Monitor (self.progress)
+subgoal_aux_loss_wt: 0.1     # Loss auxiliaire subgoals (self.subgoal - détection frontière)
+# Note: cot_loss_weight et subtask_loss_weight (définis plus haut) s'ajoutent à ces losses
+
+# ============================================================================
+# DROPOUT
+# ============================================================================
+vis_dropout: 0.3             # Dropout sur features visuelles
+lang_dropout: 0.0            # Dropout sur langage
+input_dropout: 0.0           # Dropout sur inputs
+hstate_dropout: 0.3          # Dropout sur hidden states
+attn_dropout: 0.0            # Dropout sur attention
+actor_dropout: 0.0           # Dropout avant classification
+
+# ============================================================================
+# DATA LOADING
+# ============================================================================
+num_workers: 12              # Workers pour dataloader (12 comme dans votre setup)
+save_every_epoch: true       # Sauvegarder checkpoint chaque epoch
+preprocess: false            # Re-preprocess les données (long!)
+
+# ============================================================================
+# OPTIONAL - Teacher Forcing
+# ============================================================================
+dec_teacher_forcing: true    # Teacher forcing pendant training
+                             # (utilise vraies actions au lieu de prédictions)
+
+# ============================================================================
+# NOTES VERSION G
+# ============================================================================
+# 
+# Ce modèle VERSION G combine:
+# 1. Génération de subgoals (Chain-of-Thought) - AVANT le décodage
+# 2. Classifier self.subtasks - Prédit quel subgoal est actif
+# 3. Guidance des actions - Les actions sont guidées par l'embedding du subgoal actif
+#
+# Différences avec VERSION E:
+# - Pas d'attention PM → Subgoals (plus simple)
+# - self.subtasks classifier en parallèle de self.progress
+# - Subgoal actif utilisé pour guider les actions directement
+# - Pas de modification de la taille du LSTM décodeur
+#
+# Architecture:
+# 1. Encoder l'instruction → enc_lang
+# 2. Générer subgoals CoT → subgoals_embeddings (batch, max_subgoals, demb)
+# 3. Pour chaque timestep t du décodeur:
+#    - LSTM step normal
+#    - concat = [h[t], enc_attend, visual, action]
+#    - self.progress(concat) → pm[t]
+#    - self.subtasks(concat) → which_subgoal[t]  ← NOUVEAU
+#    - softmax(which_subgoal) @ subgoals_embeddings → current_subgoal_emb
+#    - actor([concat, current_subgoal_emb]) → action[t]  ← Guidé par subgoal
+#
+# Losses:
+# - action_low: Cross-entropy actions (principale)
+# - mask: Masques objets
+# - pm_aux: MSE pour self.progress
+# - subgoal_aux: MSE pour self.subgoal (détection frontière)
+# - cot_subgoal: Cross-entropy pour génération subgoals CoT
+# - subtask_classifier: Cross-entropy pour self.subtasks ← NOUVEAU
+#
+# Performance attendue:
+# - Action F1: 87-92%
+# - Subtask Acc: 75-80% (indique que le modèle prédit bien le subgoal actif)
+# - CoT Acc: 70-75%
+#
+# ============================================================================

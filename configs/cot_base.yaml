@@ -1,0 +1,56 @@
+# Configuration pour VERSION G BASE (AVANT self.subtasks)
+# ============================================================================
+# Configuration pour CoTModuleSubgoalVersionG
+# Chain-of-Thought avec classifier self.subtasks
+# ============================================================================
+
+exp_name: subgoal
+description: "VERSION G: self.subtasks classifier - predicts active subgoal at each timestep"
+
+# ============================================================================
+# PATHS
+# ============================================================================
+dout: $ALFRED_ROOT/experiments/cot_base
+data: $ALFRED_ROOT/data/json_feat_2.1.0
+splits: $ALFRED_ROOT/data/splits/oct21.json
+
+
+
+# Model
+model: cot_subgoals_base
+
+# Training
+batch: 8
+epochs: 30
+lr: 0.0001
+decay_epoch: 10
+
+# Architecture
+dframe: 2500
+dhid: 128
+demb: 128
+pframe: 300
+mask_loss_wt: 1.0
+action_loss_wt: 1.0
+
+# CoT Subgoals
+use_cot_subgoal: True
+max_subgoals: 14
+cot_loss_weight: 0.5
+
+# Auxiliary losses (du parent)
+pm_aux_loss_wt: 0.1
+subgoal_aux_loss_wt: 0.1
+
+# Dropout
+attn_dropout: 0.0
+hstate_dropout: 0.3
+actor_dropout: 0.0
+input_dropout: 0.0
+vis_dropout: 0.3
+
+# Teacher forcing
+dec_teacher_forcing: True
+
+# Device
+gpu: True

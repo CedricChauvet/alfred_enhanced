@@ -58,6 +58,7 @@ TensorBoard est l'outil de visualisation de TensorFlow/PyTorch qui permet de sui
 ```bash
 # Depuis n'importe quel terminal
 tensorboard --logdir /chemin/vers/experiments/nom_experience/tensorboard
+tensorboard --logdir /media/cedrix/Ubuntu_2To/Alfred/alfred_enhanced/experiments/cot_pm_VERSION_E_injection_20251230_191044/tensorboard
 ```
 
 ### Accès à l'interface
